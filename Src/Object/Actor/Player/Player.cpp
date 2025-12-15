@@ -60,6 +60,7 @@ void Player::InitLoad(void)
 	inputBuf_[0] = '\0';
 	hiraText_.clear();
 	romanjiConverter_.clear();
+	isFirstInputFrame_ = true;
 }
 
 void Player::InitTransform(void)
@@ -159,6 +160,56 @@ void Player::Update(void)
 {
 	ActorBase::Update();
 
+
+	// --- 必殺技コマンド登録モード ---
+	if (!isRegisteringUltimate_) {
+		// F1で登録モード開始
+		if (CheckHitKey(KEY_INPUT_F1)) {
+			isRegisteringUltimate_ = true;
+			registerKeyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
+			SetActiveKeyInput(registerKeyInputHandle_);
+			registerInputBuf_[0] = '\0';
+		}
+	}
+	else {
+		// 入力受付中
+		GetKeyInputString(registerInputBuf_, registerKeyInputHandle_);
+		// Enterで登録
+		if (CheckKeyInput(registerKeyInputHandle_) == 1) {
+			DeleteKeyInput(registerKeyInputHandle_);
+			SetActiveKeyInput(-1);
+			isRegisteringUltimate_ = false;
+			if (attackManager_ && registerInputBuf_[0] != '\0') {
+				std::string commandStr(registerInputBuf_);
+				std::string commandId = attackManager_->RegisterUltimateCommand(commandStr);
+				printfDx("登録: %s, ID: %s\n", commandStr.c_str(), commandId.c_str());
+
+
+			}
+			keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
+			SetActiveKeyInput(keyInputHandle_);
+			isInputActive_ = true;
+			inputBuf_[0] = '\0';
+			hiraText_.clear();
+			romanjiConverter_.clear();
+		}
+		// Escでキャンセル
+		if (CheckHitKey(KEY_INPUT_ESCAPE)) {
+			DeleteKeyInput(registerKeyInputHandle_);
+			SetActiveKeyInput(-1);
+			isRegisteringUltimate_ = false;
+			keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
+			SetActiveKeyInput(keyInputHandle_);
+			isInputActive_ = true;
+			inputBuf_[0] = '\0';
+			hiraText_.clear();
+			romanjiConverter_.clear();
+
+		}
+		// ここでreturnして他の処理をスキップしてもOK
+		return;
+	}
+
 	// グリッド移動処理
 	if (isMovingOnGrid_) {
 		// 目標グリッド座標をワールド座標に変換
@@ -231,18 +282,22 @@ void Player::Draw(void)
 {
 	ActorBase::Draw();
 
-	DrawFormatString(
-		0, 50, 0xffffff,
-		"キャラ角度　 ：(%.1f, %.1f, %.1f)",
-		AsoUtility::Rad2DegF(angle_.x),
-		AsoUtility::Rad2DegF(angle_.y),
-		AsoUtility::Rad2DegF(angle_.z)
-	);
-	if (isInputActive_) {
-		DrawBox(0, 100, 400, 130, 0x222222, TRUE);
-		DrawFormatString(10, 105, 0xff00ff, "コマンド入力(ローマ字): %s", inputBuf_);
+	// --- 入力系の描画を中央上部に大きく表示 ---
+	constexpr int SCREEN_WIDTH = 1980;
+	constexpr int SCREEN_HEIGHT = 1080;
+	constexpr int BOX_WIDTH = 1980;
+	constexpr int BOX_HEIGHT = 300;
+	constexpr int BOX_X = (SCREEN_WIDTH - BOX_WIDTH) / 2;
+	constexpr int BOX_Y = 40;
 
-		// 入力中のひらがな変換
+	// フォントサイズを大きく
+	int oldFontSize = GetFontSize();
+	SetFontSize(64);
+
+	if (isInputActive_) {
+		//DrawBox(BOX_X, BOX_Y, BOX_X + BOX_WIDTH, BOX_Y + BOX_HEIGHT, 0x222222, TRUE);
+		DrawFormatString(BOX_X + 60, BOX_Y + 40, 0xff00ff, "コマンド入力(ローマ字): %s", inputBuf_);
+
 		RomanjiConverter tmpConverter;
 		tmpConverter.clear();
 		for (int i = 0; inputBuf_[i] != '\0'; ++i) {
@@ -250,10 +305,10 @@ void Player::Draw(void)
 		}
 		std::string hiraText = tmpConverter.getOutput();
 
-		DrawFormatString(10, 125, 0x00ff00, "変換(ひらがな): %s", hiraText.c_str());
+		DrawFormatString(BOX_X + 60, BOX_Y + 110, 0x00ff00, "変換(ひらがな): %s", hiraText.c_str());
 	}
 
-	// 前回入力のひらがな変換
+	// 入力確定後の表示（直前の入力）
 	RomanjiConverter prevConverter;
 	prevConverter.clear();
 	for (int i = 0; inputText_[i] != '\0'; ++i) {
@@ -261,14 +316,38 @@ void Player::Draw(void)
 	}
 	std::string prevHiraText = prevConverter.getOutput();
 
-	DrawFormatString(10, 140, 0x00ff00, "直前の入力: %s（%s）", inputText_.c_str(), prevHiraText.c_str());
+	DrawFormatString(BOX_X + 60, BOX_Y + 170, 0x00ff00, "直前の入力: %s（%s）", inputText_.c_str(), prevHiraText.c_str());
 
-	// 弾発射デバッグ表示
+	// フォントサイズを元に戻す
+	SetFontSize(oldFontSize);
+
+	// その他のデバッグ表示はそのまま
+	DrawFormatString(
+		0, 50, 0xffffff,
+		"キャラ角度　 ：(%.1f, %.1f, %.1f)",
+		AsoUtility::Rad2DegF(angle_.x),
+		AsoUtility::Rad2DegF(angle_.y),
+		AsoUtility::Rad2DegF(angle_.z)
+	);
+
 	if (isBulletFired_) {
 		DrawFormatString(10, 160, 0x00ff00, "弾を発射しました！");
 	}
+	VECTOR start = VAdd(pos_, startCapsulePos_);
+	VECTOR end = VAdd(pos_, endCapsulePos_);
+	float radius = capsuleRadius_;
+	DrawCapsule3D(start, end, radius, 16, GetColor(0, 255, 0), false, false);
 
+	DrawFormatString(800, 10, 0xFFFFFF, "HP: %d / %d", GetHp(), GetMaxHp());
+
+	// 登録フォーム表示
+	if (isRegisteringUltimate_) {
+		DrawBox(400, 300, 1200, 400, GetColor(0, 0, 0), TRUE);
+		DrawFormatString(420, 320, 0xFFFFFF, "必殺技コマンド名を入力してください（Enterで登録、Escでキャンセル）:");
+		DrawFormatString(420, 360, 0x00FF00, "%s", registerInputBuf_);
+	}
 }
+
 
 
 
@@ -294,20 +373,12 @@ void Player::LoadMoveWordDict(const std::string& path)
 
 void Player::Move(void)
 {
-	if (CheckHitKey(KEY_INPUT_F1))
-	{
-		VECTOR pos = GetPos();
-		VECTOR vel = { 0, 0, 20 };
-		int damage = 5;
-		if (attackManager_) {
-			attackManager_->Add(new RangedAttack(pos, vel, damage));
-			isBulletFired_ = true;
-		}
-	}
+
+
 	// 入力中
 	if (isInputActive_) {
-		GetKeyInputString(inputBuf_, keyInputHandle_);
 
+		GetKeyInputString(inputBuf_, keyInputHandle_);
 		// 入力確定（Enterキー押下）
 		if (CheckKeyInput(keyInputHandle_) == 1) {
 			DeleteKeyInput(keyInputHandle_);
@@ -387,9 +458,13 @@ void Player::Move(void)
 					VECTOR pos = GetPos();
 					VECTOR vel = { 0, 0, 20 };
 					int damage = 5;
-					attackManager_->Add(new RangedAttack(pos, vel, damage));
-					isBulletFired_ = true;
-					isAttacking_ = true;
+					pos.z += 100;
+					attackManager_->Add(new RangedAttack(
+						pos,                // 攻撃の発射位置
+						vel,     // 仮の速度ベクトル（必要に応じて変更）
+						10,                  // ダメージ値（例: 10）
+						this                 // 発射者
+					));
 				}
 				break;
 			case CommandType::ATTACK:
@@ -399,9 +474,17 @@ void Player::Move(void)
 					pos.z += 60; // 少し前から発射
 					VECTOR vel = { 0, 0, 10 };
 					int damage = 5;
-					attackManager_->Add(new RangedAttack(pos, vel, damage));
+					pos.z += 100;
+					attackManager_->Add(new RangedAttack(
+						pos,                // 攻撃の発射位置
+						vel,     // 仮の速度ベクトル（必要に応じて変更）
+						10,                  // ダメージ値（例: 10）
+						this                 // 発射者
+					));
+
 					isBulletFired_ = true;
 					isAttacking_ = true;
+
 				}
 				break;
 			case CommandType::MOVE:
@@ -430,8 +513,40 @@ void Player::Move(void)
 			hiraText_.clear();
 			romanjiConverter_.clear();
 		}
+
 	}
 
 }
+
+void Player::ApplyDamage(int damage) {
+	hp_ -= damage;
+	if (hp_ < 0) hp_ = 0;
+	// プレイヤー用の追加処理（例：エフェクト、SEなど）
+}
+
+void Player::AddStun(int value) {
+	stunGauge_ += value;
+	if (stunGauge_ > maxStunGauge_) stunGauge_ = maxStunGauge_;
+	// プレイヤー用の追加処理
+}
+
+void Player::OnStunned() {
+	// プレイヤーがひるんだ時の処理
+	// 例：操作不能にする、エフェクト再生など
+}
+
+bool Player::IsDead() const {
+	return hp_ <= 0;
+}
+
+void Player::ChangeState(ActorState state) {
+	state_ = state;
+}
+
+ActorBase::ActorState Player::GetState() const {
+	return state_;
+}
+
+
 
 

@@ -21,7 +21,7 @@ Camera::~Camera(void)
 void Camera::Init(void)
 {
 	// カメラの初期位置
-	pos_ = DERFAULT_POS;
+	pos_ = DEFAULT_POS;
 
 	// カメラの初期角度
 	angle_ = DERFAULT_ANGLES;

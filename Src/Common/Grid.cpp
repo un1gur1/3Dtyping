@@ -43,11 +43,11 @@ void Grid::Draw(void)
 
 	}
 
-	// YŽ²(—Î)
-	sPos = { 0.0f, -HLEN, 0.0f };
-	ePos = { 0.0f,  HLEN, 0.0f };
-	DrawLine3D(sPos, ePos, 0x00ff00);
-	DrawSphere3D(ePos, 20.0f, 10, 0x00ff00, 0x00ff00, true);
+	//// YŽ²(—Î)
+	//sPos = { 0.0f, -HLEN, 0.0f };
+	//ePos = { 0.0f,  HLEN, 0.0f };
+	//DrawLine3D(sPos, ePos, 0x00ff00);
+	//DrawSphere3D(ePos, 20.0f, 10, 0x00ff00, 0x00ff00, true);
 
 }
 

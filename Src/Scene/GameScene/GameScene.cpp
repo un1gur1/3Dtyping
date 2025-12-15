@@ -61,7 +61,9 @@ void GameScene::Load(void)
 	camera_->SetFollow(player_);
 	camera_->ChangeMode(Camera::MODE::FOLLOW);
 
+
 	player_->SetAttackManager(attackManager_);
+	enemy_->SetAttackManager(attackManager_);
 
 	// ステージの読み込み
 	stage_->Load();
@@ -94,6 +96,7 @@ void GameScene::LoadEnd(void)
 
 void GameScene::Update(void)
 {
+
 	// カメラの更新
 	camera_->Update();
 
@@ -115,8 +118,9 @@ void GameScene::Update(void)
 		}
 	}
 	// 攻撃管理の更新
+  // 攻撃管理の更新
 	if (attackManager_) {
-		attackManager_->UpdateAll();
+		attackManager_->UpdateAll(allActor_); // 必要な引数を渡す
 	}
 }
 

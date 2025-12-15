@@ -1,7 +1,10 @@
 #include "RangedAttack.h"
 #include <DxLib.h>
 
-RangedAttack::RangedAttack(const VECTOR& pos, const VECTOR& vel, int damage)
+RangedAttack::RangedAttack(const VECTOR& pos, const VECTOR& vel, int damage, ActorBase* shooter)
+    : 
+    shooter_(shooter),
+	AttackBase(shooter)
 {
     pos_ = pos;
     vel_ = vel;
@@ -10,14 +13,16 @@ RangedAttack::RangedAttack(const VECTOR& pos, const VECTOR& vel, int damage)
 }
 
 void RangedAttack::Update() {
-    pos_ = VAdd(pos_, vel_);
-    lifeTime_ -= 1.0f / 60.0f; // 60FPS‘z’è
-    if (lifeTime_ <= 0) {
+    // ˆÚ“®
+    pos_.x += vel_.x;
+    pos_.y += vel_.y;
+    pos_.z += vel_.z;
+    lifeTime_ -= 1.0f / 60.0f;
+    if (lifeTime_ <= 0.0f) {
         isAlive_ = false;
     }
-    // •Ç‚â“G‚Æ‚Ì“–‚½‚è”»’è‚Í‚±‚±‚Å’Ç‰Á
 }
 
 void RangedAttack::Draw() {
-    DrawSphere3D(pos_, 10.0f, 16, GetColor(255, 100, 100), GetColor(255, 100, 100), false);
+    DrawSphere3D(pos_, 100.0f, 16, GetColor(255, 100, 100), GetColor(255, 100, 100), false);
 }

@@ -144,6 +144,67 @@ void ActorBase::MoveToGrid(const GridPos& target)
 	isMovingOnGrid_ = true;
 }
 
+// ダメージ適用
+void ActorBase::ApplyDamage(int damage) {
+	hp_ -= damage;
+	if (hp_ < 0) hp_ = 0;
+}
+
+// ひるみゲージ加算
+void ActorBase::AddStun(int value) {
+	stunGauge_ += value;
+	if (stunGauge_ > maxStunGauge_) stunGauge_ = maxStunGauge_;
+}
+
+// ひるみ状態突入（デフォルトは何もしない。派生クラスでオーバーライド推奨）
+void ActorBase::OnStunned() {
+	// 例: 派生クラスで状態遷移や演出を実装
+}
+
+// 死亡判定
+bool ActorBase::IsDead() const {
+	return hp_ <= 0;
+}
+
+// HPゲッター
+int ActorBase::GetHp() const {
+	return hp_;
+}
+
+int ActorBase::GetMaxHp() const {
+	return maxHp_;
+}
+
+int ActorBase::GetStunGauge() const {
+	return stunGauge_;
+}
+
+int ActorBase::GetMaxStunGauge() const {
+	return maxStunGauge_;
+}
+
+// 状態遷移（デフォルトは何もしない。派生クラスで実装）
+void ActorBase::ChangeState(ActorState state) {
+	// 例: 派生クラスでステートマシン制御
+}
+
+ActorBase::ActorState ActorBase::GetState() const
+{
+	return ActorState();
+}
+
+
+// プレイヤーかどうか（デフォルトはfalse。Playerでtrueを返す）
+bool ActorBase::IsPlayer() const {
+	return false;
+}
+
+// 敵かどうか（デフォルトはfalse。Enemyでtrueを返す）
+bool ActorBase::IsEnemy() const {
+	return false;
+}
+
+
 void ActorBase::Move(void)
 {
 }

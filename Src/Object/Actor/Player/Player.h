@@ -11,6 +11,7 @@
 class Camera;
 class RomanjiConverter;
 class AttackManager;
+class RangedAttack;
 
 class Player : public ActorBase
 {
@@ -65,7 +66,7 @@ public:
 	std::string hiraText_;    // 変換後ひらがな
 	int keyInputHandle_ = -1; // 入力欄ハンドル
 	bool isInputActive_ = false; // 入力中フラグ
-
+	bool isFirstInputFrame_ = true;
 	void SetAttackManager(AttackManager* manager) { attackManager_ = manager; }
 
 	enum class CommandType {
@@ -86,6 +87,17 @@ public:
 	};
 	CommandType StringToCommandType(const std::string& str);
 	std::unordered_map<std::string, CommandType> commandMap_;
+
+	// オーバーライド
+	void ApplyDamage(int damage) override;
+	void AddStun(int value) override;
+	void OnStunned() override;
+	bool IsDead() const override;
+	void ChangeState(ActorState state)override;
+	ActorState GetState() const override;
+	bool IsPlayer() const override { return true; }
+	bool IsEnemy() const override { return false; }
+
 private:
 	bool isBulletFired_ = false; // 弾発射フラグ追加
 
@@ -105,11 +117,18 @@ private:
 	void Move(void) override;
 
 	bool isAttacking_ = false;
+
+	ActorState state_ = ActorState::IDLE;
+
 private:
+	bool isRegisteringUltimate_ = false;
+	char registerInputBuf_[128] = { 0 };
+	int registerKeyInputHandle_ = -1;
 	// カメラ
 	Camera* camera_;
 	RomanjiConverter* cov_;
 	AttackManager* attackManager_;
+	RangedAttack* rangedAttack_;
 
 
 };

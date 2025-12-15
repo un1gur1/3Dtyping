@@ -2,7 +2,7 @@
 #include "../ActorBase.h"
 
 class Player;
-
+class AttackManager;
 class Enemy : public ActorBase
 {
 
@@ -25,6 +25,8 @@ public:
 		MAX,
 	};
 
+
+
 public:
 	// コンストラクタ
 	Enemy(Player* player);
@@ -37,6 +39,14 @@ public:
 
 	// 描画
 	void Draw(void) override;
+
+	void OnAttackCancelled();
+
+	void ChangeState(ActorState state)override;
+
+	ActorState GetState() const override;
+
+	void SetAttackManager(AttackManager* manager) { attackManager_ = manager; }
 
 private:
 
@@ -52,13 +62,28 @@ private:
 	// 初期化後の個別処理
 	void InitPost(void) override;
 
-	// 視野描画
-	void DrawViewRange(void);
+	//// 視野描画
+	//void DrawViewRange(void);
+
+	// オーバーライド
+	void ApplyDamage(int damage) override;
+	void AddStun(int value) override;
+	void OnStunned() override;
+	bool IsDead() const override;
+	bool IsPlayer() const override { return false; }
+	bool IsEnemy() const override { return true; }
+
+
 
 private:
 
-	// プレイヤー
+	ActorState state_ = ActorState::IDLE;
+	float stateTimer_ = 0.0f; // クールダウンや詠唱、ひるみ用
 	Player* player_;
+	// 攻撃中の管理用
+	bool attackRegistered_ = false;
+	AttackManager* attackManager_ = nullptr;
+
 	
 	// 検知フラグ(視野)
 	bool isNoticeView_;
@@ -66,6 +91,7 @@ private:
 	// 検知フラグ(聴覚)
 	bool isNoticeHearing_;
 
-	// 索敵
-	void Search(void);
+
+	//// 索敵
+	//void Search(void);
 };

@@ -5,13 +5,13 @@ class Grid
 public:
 
 	// ü‚Ì’·‚³
-	static constexpr float LEN = 3000.0f;
+	static constexpr float LEN = 3200.0f;
 
 	// ü‚Ì’·‚³‚Ì”¼•ª
 	static constexpr float HLEN = LEN / 2.0f;
 
 	// ü‚ÌŠÔŠu
-	static constexpr float TERM = 200.0f;
+	static constexpr float TERM = 400.0f;
 
 	// ü‚Ì”
 	static const int NUM = static_cast<int>(LEN / TERM);

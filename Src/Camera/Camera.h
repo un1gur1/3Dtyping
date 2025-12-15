@@ -8,16 +8,15 @@ class Camera
 
 public:
 
-	// カメラの初期座標
-	static constexpr VECTOR DERFAULT_POS = { 0.0f, 200.0f, -500.0f };
-
-	// カメラの初期角度
-	static constexpr VECTOR DERFAULT_ANGLES = { 
-		0.0f, 0.0f, 0.0f
-	};
+	// カメラの初期座標（例：斜め上後ろから見下ろす位置）
+	static constexpr VECTOR DEFAULT_POS = { 0.0f, 2500.0f, -3000.0f };
+	
+	// カメラの初期角度（X軸を下向き40度）
+	static constexpr VECTOR DERFAULT_ANGLES = { 0.05, 0.0f, 0.0f };
 
 	// 追従対象からカメラへの相対座標
-	static constexpr VECTOR FOLLOW_CAMERA_LOCAL_POS = { 0.0f, 200.0f, -350.0f };
+	static constexpr VECTOR FOLLOW_CAMERA_LOCAL_POS = { 0.0f, 700.0f, -1500.0f };
+
 
 	// 追従対象から注視点への相対座標
 	static constexpr VECTOR FOLLOW_TARGET_LOCAL_POS = { 0.0f, 0.0f, 150.0f };
