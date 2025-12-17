@@ -1,207 +1,219 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="ソース ファイル">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    <Filter Include="Src">
+      <UniqueIdentifier>{1c1138d5-5b1d-46e2-b246-34ace9802c89}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ヘッダー ファイル">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    <Filter Include="Src\Camera">
+      <UniqueIdentifier>{d0c46968-5b9a-4eef-bd36-ae2fdd86cf6e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="リソース ファイル">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    <Filter Include="Src\Common">
+      <UniqueIdentifier>{44ada7e6-2021-4364-90ff-1be500753023}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\Common">
-      <UniqueIdentifier>{8d4ba2d9-586d-4aab-96ee-3150cb9050eb}</UniqueIdentifier>
+    <Filter Include="Src\Input">
+      <UniqueIdentifier>{3965ac11-6538-442a-b858-2a2d789802b5}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ヘッダー ファイル\Common">
-      <UniqueIdentifier>{3705575d-069a-48fb-823b-1379d3a844d5}</UniqueIdentifier>
+    <Filter Include="Src\Object">
+      <UniqueIdentifier>{3320a680-5798-4a9a-828e-fa8ba62a002f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\Manager">
-      <UniqueIdentifier>{a1cd74ab-2c8f-40af-9b07-b579109c5732}</UniqueIdentifier>
+    <Filter Include="Src\Scene">
+      <UniqueIdentifier>{38c7d728-5ce8-4d81-a00f-152343378a31}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ヘッダー ファイル\Manager">
-      <UniqueIdentifier>{9c34a12b-2f3d-4d08-a3cb-62d4e848cce4}</UniqueIdentifier>
+    <Filter Include="Src\Utility">
+      <UniqueIdentifier>{984ccd58-8a6e-442a-b54f-d50816cc94b8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\Object">
-      <UniqueIdentifier>{941d9d9c-ee48-4c54-8b81-51f06d5a0564}</UniqueIdentifier>
+    <Filter Include="Src\Object\Actor">
+      <UniqueIdentifier>{6c7d4eab-239a-4ec4-b76f-aeebbf93ce52}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ヘッダー ファイル\Object">
-      <UniqueIdentifier>{7593ead5-e778-42d7-b770-5f1b8e3ff5fe}</UniqueIdentifier>
+    <Filter Include="Src\Object\Attack">
+      <UniqueIdentifier>{8b7162c3-8e51-44d1-b5e8-b49160341284}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\Scene">
-      <UniqueIdentifier>{28b01c46-753b-4801-9df4-8c6d411bac0b}</UniqueIdentifier>
+    <Filter Include="Src\Object\Common">
+      <UniqueIdentifier>{366ab91b-6dc6-4d8f-a813-2f75719a2cc9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ヘッダー ファイル\Scene">
-      <UniqueIdentifier>{1c7596dd-367f-4dcf-9f57-7987daa8672b}</UniqueIdentifier>
+    <Filter Include="Src\Object\Actor\Enemy">
+      <UniqueIdentifier>{f21808d5-0d25-41bb-ba29-07e54bc3238d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ソース ファイル\Utility">
-      <UniqueIdentifier>{1bd65466-6b3e-4da2-abcd-c76285ccbec9}</UniqueIdentifier>
+    <Filter Include="Src\Object\Actor\Player">
+      <UniqueIdentifier>{50f723fc-db91-4146-b9e9-88d6005acdbe}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ヘッダー ファイル\Utility">
-      <UniqueIdentifier>{88ec2679-9462-4f56-aaed-ecd79e65d6d7}</UniqueIdentifier>
+    <Filter Include="Src\Object\Actor\Stage">
+      <UniqueIdentifier>{0d11cd97-e0a4-4762-9398-6adf408a2772}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Object\Attack\RangedAttack">
+      <UniqueIdentifier>{10d4648d-30ac-4632-b2cc-fbbbb4a2e2d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Object\Attack\UltimateAttack">
+      <UniqueIdentifier>{1acd5ada-355a-4551-b888-cfd91e27ea44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Scene\GameScene">
+      <UniqueIdentifier>{a5f4d244-825e-46a8-aac7-39878ba0ea76}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Scene\Loading">
+      <UniqueIdentifier>{43dba55b-2d4e-4870-95bc-522c067b7149}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Scene\TitleScene">
+      <UniqueIdentifier>{efb0ea51-52b0-4d43-9a67-6e1ec8a427b8}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Src\Application.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\main.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Common\Vector2.cpp">
-      <Filter>ソース ファイル\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Common\Fader.cpp">
-      <Filter>ソース ファイル\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Input\InputManager.cpp">
-      <Filter>ソース ファイル\Manager</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Scene\SceneManager.cpp">
-      <Filter>ソース ファイル\Manager</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Scene\SceneBase.cpp">
-      <Filter>ソース ファイル\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Scene\TitleScene\TitleScene.cpp">
-      <Filter>ソース ファイル\Scene</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Utility\AsoUtility.cpp">
-      <Filter>ソース ファイル\Utility</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Common\Quaternion.cpp">
-      <Filter>ソース ファイル\Common</Filter>
-    </ClCompile>
     <ClCompile Include="Src\Camera\Camera.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Object\Actor\Stage\Stage.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Object\Actor\Player\Player.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Object\Common\AnimationController.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Utility\MatrixUtility.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Object\Actor\Enemy\Enemy.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\Object\Actor\ActorBase.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>Src\Camera</Filter>
     </ClCompile>
     <ClCompile Include="Src\Common\FpsControl.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>Src\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Scene\GameScene\GameScene.cpp">
-      <Filter>ソース ファイル</Filter>
+    <ClCompile Include="Src\Common\Fader.cpp">
+      <Filter>Src\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Scene\Loading\Loading.cpp">
-      <Filter>ソース ファイル</Filter>
+    <ClCompile Include="Src\Common\Quaternion.cpp">
+      <Filter>Src\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Common\Vector2.cpp">
+      <Filter>Src\Common</Filter>
     </ClCompile>
     <ClCompile Include="Src\Common\Grid.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>Src\Common</Filter>
     </ClCompile>
     <ClCompile Include="Src\Common\RomanjiConverter.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>Src\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Object\Attack\AttackManager.cpp">
-      <Filter>ソース ファイル</Filter>
+    <ClCompile Include="Src\Input\InputManager.cpp">
+      <Filter>Src\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Actor\ActorBase.cpp">
+      <Filter>Src\Object\Actor</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Actor\Enemy\Enemy.cpp">
+      <Filter>Src\Object\Actor\Enemy</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Actor\Stage\Stage.cpp">
+      <Filter>Src\Object\Actor\Stage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Actor\Player\Player.cpp">
+      <Filter>Src\Object\Actor\Player</Filter>
     </ClCompile>
     <ClCompile Include="Src\Object\Attack\AttackBase.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>Src\Object\Attack</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Attack\AttackManager.cpp">
+      <Filter>Src\Object\Attack</Filter>
     </ClCompile>
     <ClCompile Include="Src\Object\Attack\RangedAttack\RangedAttack.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>Src\Object\Attack\RangedAttack</Filter>
     </ClCompile>
     <ClCompile Include="Src\Object\Attack\UltimateAttack\UltimateAttack.cpp">
-      <Filter>ソース ファイル</Filter>
+      <Filter>Src\Object\Attack\UltimateAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Common\AnimationController.cpp">
+      <Filter>Src\Object\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Scene\SceneBase.cpp">
+      <Filter>Src\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Scene\SceneManager.cpp">
+      <Filter>Src\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Scene\GameScene\GameScene.cpp">
+      <Filter>Src\Scene\GameScene</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Scene\Loading\Loading.cpp">
+      <Filter>Src\Scene\Loading</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Scene\TitleScene\TitleScene.cpp">
+      <Filter>Src\Scene\TitleScene</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Utility\MatrixUtility.cpp">
+      <Filter>Src\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Utility\AsoUtility.cpp">
+      <Filter>Src\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Application.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\main.cpp">
+      <Filter>Src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Src\Application.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\main.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Common\Vector2.h">
-      <Filter>ヘッダー ファイル\Common</Filter>
+    <ClInclude Include="Src\Camera\Camera.h">
+      <Filter>Src\Camera</Filter>
     </ClInclude>
     <ClInclude Include="Src\Common\Fader.h">
-      <Filter>ヘッダー ファイル\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Input\InputManager.h">
-      <Filter>ヘッダー ファイル\Manager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Scene\SceneManager.h">
-      <Filter>ヘッダー ファイル\Manager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Scene\TitleScene\TitleScene.h">
-      <Filter>ヘッダー ファイル\Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Scene\SceneBase.h">
-      <Filter>ヘッダー ファイル\Scene</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Utility\AsoUtility.h">
-      <Filter>ヘッダー ファイル\Utility</Filter>
+      <Filter>Src\Common</Filter>
     </ClInclude>
     <ClInclude Include="Src\Common\Quaternion.h">
-      <Filter>ヘッダー ファイル\Common</Filter>
+      <Filter>Src\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Camera\Camera.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Common\Vector2.h">
+      <Filter>Src\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Object\Actor\Stage\Stage.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Input\InputManager.h">
+      <Filter>Src\Input</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Object\Actor\Player\Player.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Scene\SceneManager.h">
+      <Filter>Src\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Object\Common\AnimationController.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Scene\SceneBase.h">
+      <Filter>Src\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Utility\MatrixUtility.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Object\Actor\Enemy\Enemy.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Scene\TitleScene\TitleScene.h">
+      <Filter>Src\Scene\TitleScene</Filter>
     </ClInclude>
     <ClInclude Include="Src\Object\Actor\ActorBase.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>Src\Object\Actor</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Common\FpsControl.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Object\Common\AnimationController.h">
+      <Filter>Src\Object\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Scene\GameScene\GameScene.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Utility\AsoUtility.h">
+      <Filter>Src\Utility</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Scene\Loading\Loading.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Application.h">
+      <Filter>Src</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Common\Grid.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Common\RomanjiConverter.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Object\Attack\AttackManager.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\main.h">
+      <Filter>Src</Filter>
     </ClInclude>
     <ClInclude Include="Src\Object\Attack\AttackBase.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>Src\Object\Attack</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Object\Attack\RangedAttack\RangedAttack.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="Src\Object\Attack\AttackManager.h">
+      <Filter>Src\Object\Attack</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Object\Actor\Enemy\Enemy.h">
+      <Filter>Src\Object\Actor\Enemy</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Scene\GameScene\GameScene.h">
+      <Filter>Src\Scene\GameScene</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Scene\Loading\Loading.h">
+      <Filter>Src\Scene\Loading</Filter>
     </ClInclude>
     <ClInclude Include="Src\Object\Attack\UltimateAttack\UltimateAttack.h">
-      <Filter>ヘッダー ファイル</Filter>
+      <Filter>Src\Object\Attack\UltimateAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Object\Attack\RangedAttack\RangedAttack.h">
+      <Filter>Src\Object\Attack\RangedAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Object\Actor\Player\Player.h">
+      <Filter>Src\Object\Actor\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Object\Actor\Stage\Stage.h">
+      <Filter>Src\Object\Actor\Stage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Common\Grid.h">
+      <Filter>Src\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Common\FpsControl.h">
+      <Filter>Src\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Utility\MatrixUtility.h">
+      <Filter>Src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Common\RomanjiConverter.h">
+      <Filter>Src\Common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
