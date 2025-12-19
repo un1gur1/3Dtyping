@@ -1,17 +1,29 @@
 #pragma once
 #include <DxLib.h>
+#include "../../Common/UiManager.h"
+#include"../Actor/ActorBase.h"
 class ActorBase;
 class AttackBase {
 public:
-
-    AttackBase(ActorBase* shooter);
+    // targetGridIdx: 攻撃対象グリッド番号
+    // isPlayer: プレイヤー側かどうか
+    // velocity: 初期速度
+    // lifeTime: 寿命（秒）
+    AttackBase(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter);
 
     virtual ~AttackBase();
 
-    // 毎フレーム更新
-    virtual void Update() = 0;
-    // 描画
+    // 共通の更新処理
+    virtual void Update();
+
+    // 派生で描画処理を実装
     virtual void Draw() = 0;
+
+    // 予兆（警告）描画
+    virtual void DrawWarning() = 0;
+
+    // 攻撃本体（例：弾の発生・ダメージ判定など）
+    virtual void Execute() = 0;
 
     // 位置取得・設定
     const VECTOR& GetPos() const { return pos_; }
@@ -24,19 +36,26 @@ public:
     bool IsAlive() const { return isAlive_; }
     void Kill() { isAlive_ = false; }
 
-
     ActorBase* GetShooter() const { return shooter_; }
 
-    enum class BulletType { PLAYER, ENEMY };
-    BulletType GetBulletType() const { return bulletType_; }
+    int GetTargetGridIdx() const { return targetGridIdx_; }
+    bool IsPlayerSide() const { return isPlayer_; }
+
+    enum class BulletType {
+        PLAYER,
+        ENEMY
+    };
+
+    virtual BulletType GetBulletType() const = 0; // 純粋仮想関数として宣言
 
 protected:
     VECTOR pos_;      // 位置
     VECTOR vel_;      // 速度
     int damage_;      // ダメージ
     bool isAlive_;    // 生存フラグ
-    BulletType bulletType_ ;
-
+    float lifeTime_;  // 寿命（秒）
+    int targetGridIdx_; // 攻撃対象グリッド番号
+    bool isPlayer_;      // プレイヤー側かどうか
     ActorBase* shooter_;
-
+    
 };

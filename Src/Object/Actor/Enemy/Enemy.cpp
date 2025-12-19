@@ -8,9 +8,9 @@
 #include "../../../Utility/MatrixUtility.h"
 #include "../../Common/AnimationController.h"
 #include "../../Attack/RangedAttack/RangedAttack.h"
-
+#include "../../Attack/UltimateAttack/UltimateAttack.h"
 #include "../Player/Player.h"
-
+#include "../../Attack/Magic/ThunderAttack.h"
 Enemy::Enemy(Player* player)
 {
 	player_ = player;
@@ -44,11 +44,11 @@ void Enemy::Update(void)
 				ChangeState(ActorState::ATTACK_RANGE);
 			}
 			else {
-				ChangeState(ActorState::ULTIMATE);
+				
 			}
 		}
 		break;
-	case ActorState::ATTACK_NEAR:
+	case ActorState::ATTACK_RANGE:
 		if (!attackRegistered_) {
 			VECTOR playerPos = player_->GetPos();
 
@@ -70,13 +70,16 @@ void Enemy::Update(void)
 				dir.z = toPlayer.z / len;
 			}
 			VECTOR velocity = { dir.x * 20.0f, dir.y * 20.0f, dir.z * 20.0f };
-
-			attackManager_->Add(new RangedAttack(
-				launchPos,    // 発射開始位置
-				velocity,     // プレイヤーの場所に向かう速度
-				10,
-				this
-			));
+			auto attack = new RangedAttack(
+				-1,         // targetGridIdx
+				false,      // isPlayer
+				velocity,   // 速度ベクトル
+				1.0f,       // lifeTime
+				10,         // damage
+				this        // shooter
+			);
+			attack->SetPos(launchPos); // 発射開始位置を明示的に設定
+			attackManager_->Add(attack);
 			attackRegistered_ = true;
 			stateTimer_ = 1.0f;
 		}
@@ -88,35 +91,31 @@ void Enemy::Update(void)
 
 
 
-	case ActorState::ATTACK_RANGE:
+	case ActorState::ATTACK_NEAR:
 		if (!attackRegistered_) {
-			// プレイヤーの座標を取得
 			VECTOR playerPos = player_->GetPos();
-			// 敵からプレイヤーへの方向ベクトル
-			VECTOR toPlayer = {
-				playerPos.x - pos_.x,
-				playerPos.y - pos_.y,
-				playerPos.z - pos_.z
-			};
-			// 正規化
-			float len = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y + toPlayer.z * toPlayer.z);
-			VECTOR dir = { 0, 0, 0 };
-			if (len > 0.0f) {
-				dir.x = toPlayer.x / len;
-				dir.y = toPlayer.y / len;
-				dir.z = toPlayer.z / len;
-			}
-			// 速度を設定（例: 20.0f）
-			VECTOR velocity = { dir.x * 20.0f, dir.y * 20.0f, dir.z * 20.0f };
 
-			attackManager_->Add(new RangedAttack(
-				pos_,        // 発射位置
-				velocity,    // プレイヤー方向の速度
-				10,          // ダメージ
-				this         // 発射者
-			));
+			// 落雷の発射位置（プレイヤーの真上、Y座標を高くする）
+			VECTOR thunderPos = playerPos;
+			thunderPos.y += 500.0f; // 上空500の位置から
+
+			// 下向きの速度ベクトル
+			VECTOR velocity = { 0.0f, -100.0f, 0.0f }; // Yマイナス方向に落下
+
+			// ThunderAttackを生成
+			auto thunder = new ThunderAttack(
+				-1,         // targetGridIdx
+				false,      // isPlayer
+				velocity,   // 速度
+				1.0f,       // lifeTime
+				20,         // damage
+				this        // shooter
+			);
+			thunder->SetPos(thunderPos); // 発射位置を明示的に設定
+			attackManager_->Add(thunder);
+
 			attackRegistered_ = true;
-			stateTimer_ = 1.0f; // 例
+			stateTimer_ = 1.0f;
 		}
 		stateTimer_ -= 1.0f / 60.0f;
 		if (stateTimer_ <= 0.0f) {
@@ -126,36 +125,18 @@ void Enemy::Update(void)
 
 	case ActorState::ULTIMATE:
 		if (!attackRegistered_) {
-			// プレイヤーの座標を取得
-			VECTOR playerPos = player_->GetPos();
-			// 敵からプレイヤーへの方向ベクトル
-			VECTOR toPlayer = {
-				playerPos.x - pos_.x,
-				playerPos.y - pos_.y,
-				playerPos.z - pos_.z
-			};
-			// 正規化
-			float len = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y + toPlayer.z * toPlayer.z);
-			VECTOR dir = { 0, 0, 0 };
-			if (len > 0.0f) {
-				dir.x = toPlayer.x / len;
-				dir.y = toPlayer.y / len;
-				dir.z = toPlayer.z / len;
+			// プレイヤーが登録した必殺技コマンドからランダム選択
+			if (!attackManager_->registeredCommands_.empty()) {
+				int idx = rand() % attackManager_->registeredCommands_.size();
+				const auto& pair = attackManager_->registeredCommands_[idx];
+				std::string commandStr = pair.first;
+				std::string commandId = pair.second;
+				StartTypingUltimate(commandStr);
 			}
-			// 速度を設定（例: 20.0f）
-			VECTOR velocity = { dir.x * 20.0f, dir.y * 20.0f, dir.z * 20.0f };
-
-			attackManager_->Add(new RangedAttack(
-				pos_,        // 発射位置
-				velocity,    // プレイヤー方向の速度
-				10,          // ダメージ
-				this         // 発射者
-			));
 			attackRegistered_ = true;
-			stateTimer_ = 1.0f; // 例
 		}
-		stateTimer_ -= 1.0f / 60.0f;
-		if (stateTimer_ <= 0.0f) {
+		// タイピング演出が終わったらIDLEに戻す
+		if (attackRegistered_ && typingCommand_.empty()) {
 			ChangeState(ActorState::IDLE);
 		}
 		break;
@@ -168,6 +149,9 @@ void Enemy::Update(void)
 		break;
 	}
 
+	if (!typingCommand_.empty()) {
+		UpdateTypingUltimate(1.0f / 60.0f); // deltaTimeはフレーム時間
+	}
 
 	//// 索敵
 	//Search();
@@ -235,6 +219,26 @@ void Enemy::Draw(void)
 	DrawCapsule3D(start, end, radius, 16, GetColor(0, 255, 0), false,false);
 
 	DrawFormatString(700, 10, 0xFFFFFF, "HP: %d / %d", GetHp(), GetMaxHp());
+
+
+
+	// --- 攻撃ステートのデバッグ表示 ---
+	const char* stateStr = "";
+	switch (state_) {
+	case ActorState::IDLE:         stateStr = "IDLE"; break;
+	case ActorState::ATTACK_NEAR:  stateStr = "ATTACK_NEAR"; break;
+	case ActorState::ATTACK_RANGE: stateStr = "ATTACK_RANGE"; break;
+	case ActorState::ULTIMATE:     stateStr = "ULTIMATE"; break;
+	case ActorState::STUN:         stateStr = "STUN"; break;
+	default:                       stateStr = "UNKNOWN"; break;
+	}
+	DrawFormatString(700, 30, 0x00FF00, "EnemyState: %s", stateStr);
+
+	// --- デバッグ用：ULTIMATEコマンド名の表示 ---
+	if (!typingCommand_.empty()) {
+		DrawFormatString(700, 50, 0xFFAA00, "UltimateCmd: %s", typingCommand_.c_str());
+	}
+
 }
 
 void Enemy::InitLoad(void)
@@ -429,6 +433,59 @@ ActorBase::ActorState Enemy::GetState() const
 	return ActorState();
 }
 
+void Enemy::StartTypingUltimate(const std::string& command) {
+	typingCommand_ = command;
+	typingElapsed_ = 0.0f;
+	// 1文字0.2秒 × 文字数
+	typingWait_ = static_cast<float>(command.size()) * 0.2f;
+}
 
+void Enemy::UpdateTypingUltimate(float deltaTime) {
+	if (!typingCommand_.empty()) {
+		typingElapsed_ += deltaTime;
+		if (typingElapsed_ >= typingWait_) {
+			// 必殺技発動
+			// コマンドID取得
+			auto it = std::find_if(
+				attackManager_->registeredCommands_.begin(),
+				attackManager_->registeredCommands_.end(),
+				[&](const auto& pair) { return pair.first == typingCommand_; }
+			);
+			if (it != attackManager_->registeredCommands_.end()) {
+				std::string commandId = it->second;
+				auto dataIt = attackManager_->ultimateCommandDataMap_.find(commandId);
+				if (dataIt != attackManager_->ultimateCommandDataMap_.end()) {
+					const auto& data = dataIt->second;
 
+					// 例：プレイヤー方向に直進する必殺技
+					VECTOR playerPos = player_->GetPos();
+					VECTOR toPlayer = {
+						playerPos.x - pos_.x,
+						playerPos.y - pos_.y,
+						playerPos.z - pos_.z
+					};
+					float len = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y + toPlayer.z * toPlayer.z);
+					VECTOR dir = { 0, 0, 0 };
+					if (len > 0.0f) {
+						dir.x = toPlayer.x / len;
+						dir.y = toPlayer.y / len;
+						dir.z = toPlayer.z / len;
+					}
+					VECTOR velocity = { dir.x * data.speed, dir.y * data.speed, dir.z * data.speed };
 
+					auto ultimate = new UltimateAttack(
+						-1,         // targetGridIdx
+						false,      // isPlayer
+						velocity,   // 速度
+						1.0f,       // lifeTime
+						data.damage,// damage
+						this        // shooter
+					);
+					ultimate->SetPos(pos_); // 発射位置を明示的に設定
+					attackManager_->Add(ultimate);
+				}
+			}
+			typingCommand_.clear();
+		}
+	}
+}

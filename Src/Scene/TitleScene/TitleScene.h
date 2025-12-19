@@ -3,7 +3,6 @@
 
 class TitleScene : public SceneBase
 {
-
 public:
 	
 	TitleScene(void);				// コンストラクタ

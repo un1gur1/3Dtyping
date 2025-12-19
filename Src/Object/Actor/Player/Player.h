@@ -12,6 +12,7 @@ class Camera;
 class RomanjiConverter;
 class AttackManager;
 class RangedAttack;
+class UltimateAttack;
 
 class Player : public ActorBase
 {
@@ -129,6 +130,8 @@ private:
 	RomanjiConverter* cov_;
 	AttackManager* attackManager_;
 	RangedAttack* rangedAttack_;
+	UltimateAttack* ultimateAttack_;
+
 
 
 };

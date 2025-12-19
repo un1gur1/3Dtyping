@@ -45,6 +45,8 @@
     <ClCompile Include="Src\Scene\TitleScene\TitleScene.cpp" />
     <ClCompile Include="Src\Utility\AsoUtility.cpp" />
     <ClCompile Include="Src\Object\Attack\UltimateAttack\UltimateAttack.cpp" />
+    <ClCompile Include="Src\Common\UiManager.cpp" />
+    <ClCompile Include="Src\Object\Attack\Magic\ThunderAttack.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Object\Attack\RangedAttack\RangedAttack.h" />
@@ -73,6 +75,8 @@
     <ClInclude Include="Src\Scene\TitleScene\TitleScene.h" />
     <ClInclude Include="Src\Utility\AsoUtility.h" />
     <ClInclude Include="Src\Object\Attack\UltimateAttack\UltimateAttack.h" />
+    <ClInclude Include="Src\Common\UiManager.h" />
+    <ClInclude Include="Src\Object\Attack\Magic\ThunderAttack.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

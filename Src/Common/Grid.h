@@ -1,8 +1,16 @@
 #pragma once
+#include <DxLib.h>
 class Grid
 {
 
 public:
+	enum class GridState {
+		Normal,
+		Warning,
+		Attack
+	};
+
+	static VECTOR GetWorldPosFromIndex(int index, bool isPlayerSide);
 
 	// ê¸ÇÃí∑Ç≥
 	static constexpr float LEN = 3200.0f;

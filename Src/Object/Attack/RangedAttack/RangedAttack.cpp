@@ -1,28 +1,25 @@
 #include "RangedAttack.h"
 #include <DxLib.h>
 
-RangedAttack::RangedAttack(const VECTOR& pos, const VECTOR& vel, int damage, ActorBase* shooter)
-    : 
-    shooter_(shooter),
-	AttackBase(shooter)
+RangedAttack::RangedAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
+    : AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter)
 {
-    pos_ = pos;
-    vel_ = vel;
-    damage_ = damage;
-    isAlive_ = true;
 }
 
 void RangedAttack::Update() {
-    // 移動
-    pos_.x += vel_.x;
-    pos_.y += vel_.y;
-    pos_.z += vel_.z;
-    lifeTime_ -= 1.0f / 60.0f;
-    if (lifeTime_ <= 0.0f) {
-        isAlive_ = false;
-    }
+    AttackBase::Update();
+    // 必要なら追加処理
 }
 
 void RangedAttack::Draw() {
     DrawSphere3D(pos_, 100.0f, 16, GetColor(255, 100, 100), GetColor(255, 100, 100), false);
+}
+
+void RangedAttack::DrawWarning() {
+    // 例：グリッドに警告エフェクトを出す場合
+     UIManager::GetInstance().SetGridState(targetGridIdx_, Grid::GridState::Warning, isPlayer_);
+}
+
+void RangedAttack::Execute() {
+    // 例：着弾時の追加処理など
 }

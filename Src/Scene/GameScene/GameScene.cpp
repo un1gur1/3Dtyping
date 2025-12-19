@@ -12,6 +12,8 @@
 
 #include "../../Object/Actor/Stage/Stage.h"
 
+#include"../../Common/UiManager.h"
+
 GameScene::GameScene(void)
 {
 }
@@ -117,10 +119,23 @@ void GameScene::Update(void)
 			WallCollision(actor);
 		}
 	}
-	// UŒ‚ŠÇ—‚ÌXV
   // UŒ‚ŠÇ—‚ÌXV
 	if (attackManager_) {
 		attackManager_->UpdateAll(allActor_); // •K—v‚Èˆø”‚ð“n‚·
+	}
+
+	Player* player = nullptr;
+	Enemy* enemy = nullptr;
+	for (auto actor : allActor_) {
+		if (actor && actor->IsPlayer()) player = static_cast<Player*>(actor);
+		if (actor && actor->IsEnemy()) enemy = static_cast<Enemy*>(actor);
+	}
+	if (player) {
+		UIManager::GetInstance().SetPlayerStatus(player->GetHp(), player->GetMaxHp());
+	}
+	if (enemy) {
+	
+		UIManager::GetInstance().SetEnemyStatus(enemy->GetHp(), enemy->GetMaxHp(),"BOSS");
 	}
 }
 
@@ -148,6 +163,9 @@ void GameScene::Draw(void)
 	if (attackManager_) {
 		attackManager_->DrawAll();
 	}
+
+	// UI•`‰æ
+	UIManager::GetInstance().Draw(UIManager::UIState::Normal);
 }
 
 void GameScene::Release(void)

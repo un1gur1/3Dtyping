@@ -3,6 +3,8 @@
 
 class Player;
 class AttackManager;
+class UlitimateAttack;	
+
 class Enemy : public ActorBase
 {
 
@@ -48,6 +50,11 @@ public:
 
 	void SetAttackManager(AttackManager* manager) { attackManager_ = manager; }
 
+	std::string typingCommand_; // 今タイピング中のコマンド
+	float typingElapsed_ = 0.0f;
+	float typingWait_ = 0.0f;
+	void StartTypingUltimate(const std::string& command);
+	void UpdateTypingUltimate(float deltaTime);
 private:
 
 	// リソースロード
@@ -83,7 +90,7 @@ private:
 	// 攻撃中の管理用
 	bool attackRegistered_ = false;
 	AttackManager* attackManager_ = nullptr;
-
+	UlitimateAttack* ultimateAttack_ = nullptr;
 	
 	// 検知フラグ(視野)
 	bool isNoticeView_;

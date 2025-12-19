@@ -37,7 +37,6 @@ private:
 	// 全てのアクター
 	std::vector<ActorBase*> allActor_;
 	AttackManager* attackManager_; 
-
 	// 衝突判定(床)
 	void FieldCollision(ActorBase* actor);
 
