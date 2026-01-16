@@ -5,7 +5,7 @@
 ThunderAttack::ThunderAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
     : AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter)
 {
-    // íeÇÕÇ‹Çæî≠éÀÇµÇ»Ç¢Åió\íõå„Ç…ExecuteÇ≈î≠éÀÅj
+
 }
 
 void ThunderAttack::Update()
@@ -47,7 +47,7 @@ void ThunderAttack::Draw()
 {
     for (const auto& bullet : bullets_) {
         if (!bullet.isActive) continue;
-        DrawSphere3D(pos_, 100.0f, 16, GetColor(255, 100, 100), GetColor(255, 100, 100), false);
+        DrawSphere3D(pos_, 30.0f, 16, GetColor(255, 100, 100), GetColor(255, 100, 100), true);
     }
 }
 

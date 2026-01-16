@@ -1,6 +1,6 @@
 zenshin,MOVE_UP,,,,MOVE_UP
 zensinn,MOVE_UP,,,,MOVE_DOWN
-zensinn,MOVE_UP,,,,MOVE_LEFT
+zensin,MOVE_UP,,,,MOVE_LEFT
 zenshin,MOVE_UP,,,,MOVE_RIGHT
 zenshinn,MOVE_UP,,,,MOVE_UP_RIGHT
 zenshin,MOVE_UP,,,,MOVE_UP_LEFT
@@ -30,9 +30,9 @@ hidariidou,MOVE_LEFT,,,,
 ue,MOVE_UP,,,,
 uwe,MOVE_UP,,,,
 sita,MOVE_DOWN,,,,
-sita,MOVE_DOWN,,,,
-sita,MOVE_DOWN,,,,
-migiyue,MOVE_UP_RIGHT,,,,
+shita,MOVE_DOWN,,,,
+sitaniidou,MOVE_DOWN,,,,
+migiue,MOVE_UP_RIGHT,,,,
 migiyue,MOVE_UP_RIGHT,,,,
 mighue,MOVE_UP_RIGHT,,,,
 hidariyue,MOVE_UP_LEFT,,,,
@@ -46,7 +46,7 @@ hidarishita,MOVE_DOWN_LEFT,,,,
 hidarishita,MOVE_DOWN_LEFT,,,,
 yokero,MOVE_RANDOM,,,,
 yokeru,MOVE_RANDOM,,,,
-escape,MOVE_RANDOM,,,,
+kaihi,MOVE_RANDOM,,,,
 kawasu,MOVE_RANDOM,,,,
 kawase,MOVE_RANDOM,,,,
 random,MOVE_RANDOM,,,,
@@ -64,3 +64,6 @@ migiyokoidou,MOVE_RIGHT,,,,
 migiyokoidou,MOVE_RIGHT,,,,
 hidariyokoidou,MOVE_LEFT,,,,
 hidariyokoidou,MOVE_LEFT,,,,
+rakurai,SHOOT,,,,
+kaminarikougeki,SHOOT,,,,
+kaminarikougeki,SHOOT,,,,

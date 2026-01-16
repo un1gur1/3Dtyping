@@ -29,6 +29,8 @@ void InputManager::Init(void)
 	Add(KEY_INPUT_UP);
 	Add(KEY_INPUT_DOWN);
 
+	Add(KEY_INPUT_TAB);
+
 	InputManager::MouseInfo info;
 
 	// ¶ƒNƒŠƒbƒN

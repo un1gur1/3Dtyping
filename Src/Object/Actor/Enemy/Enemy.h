@@ -24,6 +24,7 @@ public:
 	{
 		IDLE,
 		WALK,
+		SHOT,
 		MAX,
 	};
 
@@ -98,6 +99,9 @@ private:
 	// 検知フラグ(聴覚)
 	bool isNoticeHearing_;
 
+	bool isAttacking_ = false;	
+	float moveTime_ = 0.0f; // 移動用タイマー
+	float moveCenterX_ = 0.0f; // 中心座標
 
 	//// 索敵
 	//void Search(void);

@@ -58,6 +58,15 @@ public:
 	bool IsInitFail(void) const;	// ‰Šú‰»¬Œ÷^¸”s‚Ì”»’è
 	bool IsReleaseFail(void) const;	// ‰ğ•ú¬Œ÷^¸”s‚Ì”»’è
 
+	void ShakeScreen(int power, int duration, bool isShakeX = true, bool isShakeY = true);	// ‰æ–Ê‚ğ—h‚ç‚·
+	void StopShakeScreen(void);
+	int shakePower_ = 0;	// ‰æ–Ê—h‚ç‚µ‚Ì‹­‚³
+	int shakeDuration_ = 0;	// ‰æ–Ê—h‚ç‚µ‚Ì‘±ŠÔ
+	int shakeOffsetX_ = 0;	// ‰æ–Ê—h‚ç‚µ‚ÌXƒIƒtƒZƒbƒg
+	int shakeOffsetY_ = 0;	// ‰æ–Ê—h‚ç‚µ‚ÌYƒIƒtƒZƒbƒg
+	bool isShakeX_;			// X•ûŒü‚Ì—h‚ç‚µ‚ğ—LŒø‚É‚·‚é‚©
+	bool isShakeY_;			// Y•ûŒü‚Ì—h‚ç‚µ‚ğ—LŒø‚É‚·‚é‚©
+
 private:
 
 	// ‰Šú‰»¸”s

@@ -13,7 +13,9 @@ public:
 	{
 		NONE,
 		TITLE,
-		GAME
+		GAME,
+		RESULT_WIN,
+		RESULT_LOSE,
 	};
 
 public:

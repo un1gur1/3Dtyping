@@ -39,6 +39,7 @@ public:
     ActorBase* GetShooter() const { return shooter_; }
 
     int GetTargetGridIdx() const { return targetGridIdx_; }
+
     bool IsPlayerSide() const { return isPlayer_; }
 
     enum class BulletType {
@@ -47,6 +48,14 @@ public:
     };
 
     virtual BulletType GetBulletType() const = 0; // ƒˆ‰¼‘zŠÖ”‚Æ‚µ‚ÄéŒ¾
+    enum class CollisionType {
+        Sphere,
+        Grid,
+        Both
+    };
+    static int CalcGridIndex(const VECTOR& pos, bool isPlayer);
+
+    CollisionType collisionType_ = CollisionType::Sphere;
 
 protected:
     VECTOR pos_;      // ˆÊ’u

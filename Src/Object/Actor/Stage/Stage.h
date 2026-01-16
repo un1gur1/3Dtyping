@@ -6,7 +6,11 @@ class Stage
 
 public:
 
-	Stage(void);
+	static constexpr int MAGIC_CIRCLE_WIDTH = 1500;
+	static constexpr int MAGIC_CIRCLE_HEIGHT = 1500;
+
+
+	Stage(float x ,float y);
 	~Stage(void);
 
 	void Init(void);
@@ -21,11 +25,11 @@ public:
 
 private:
 
-	// ステージモデルのハンドルID
-	int modelId_;
-
-	// ステージモデルの位置
-	VECTOR pos_;
+	// メンバ変数
+	VECTOR pos_;         // 中心座標
+	float angle_;        // 回転角度
+	float scale_;        // 基本スケール
+	int imageHandle_;    // 魔法陣画像ハンドル
 
 };
 

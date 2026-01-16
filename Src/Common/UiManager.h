@@ -3,6 +3,7 @@
 #include <vector>
 #include"../Application.h"
 #include "Grid.h"
+class Camera;
 class UIManager {
 public:
 
@@ -25,6 +26,7 @@ public:
     UIManager(const UIManager&) = delete;
     UIManager& operator=(const UIManager&) = delete;
 
+    void InitGrids();
     // 毎フレーム呼び出し
     void Update(UIState currentState);
     void Draw(UIState currentState);
@@ -83,12 +85,24 @@ public:
         const std::string& prevConverted
     );
 
+    // HPバー描画
+    void DrawHpBar(int x, int y, int width, int height, int hp, int maxHp, unsigned int color, const char* label);
 
+    std::vector<std::string> normalCommandList_;
+    std::vector<std::string> ultimateCommandList_;
+
+    void SetNormalCommandList(const std::vector<std::string>& list);
+    void SetUltimateCommandList(const std::vector<std::string>& list);
     // グリッド状態（5マス分、必要に応じてサイズ調整）
-    std::vector<Grid::GridState> playerGridStates_ = std::vector<Grid::GridState>(5, Grid::GridState::Normal);
-    std::vector<Grid::GridState> enemyGridStates_ = std::vector<Grid::GridState>(5, Grid::GridState::Normal);
+    std::vector<Grid> playerGrids_ = std::vector<Grid>(5);
+    std::vector<Grid> enemyGrids_ = std::vector<Grid>(5);
+
+    std::vector<Grid> grids;
+
 
 private:
+    bool isGridInitialized = false;
+
     UIManager() = default;
     ~UIManager() = default;
 
@@ -110,5 +124,9 @@ private:
     float timer_ = 0.0f;
     int pauseCursor_ = 0;
 
+	Camera* camera = nullptr;
 
+    int debugGridIndex_ = 0; // 動かすグリッドのインデックス
+    float debugOffsetX_ = 0.0f;
+    float debugOffsetY_ = 0.0f;
 };

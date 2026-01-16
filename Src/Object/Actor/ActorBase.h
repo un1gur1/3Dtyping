@@ -69,8 +69,8 @@ public:
 protected:
 
 
-	int hp_ = 100;           // 体力
-	int maxHp_ = 100;        // 最大体力
+	int hp_ = 1000;           // 体力
+	int maxHp_ = 1000;        // 最大体力
 	int stunGauge_ = 0;      // ひるみゲージ
 	int maxStunGauge_ = 100; // 最大ひるみゲージ
 

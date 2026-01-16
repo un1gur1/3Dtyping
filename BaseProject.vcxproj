@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Src\Scene\ResultScene\ResultWinScene.cpp" />
+    <ClCompile Include="Src\Scene\ResultScene\ResultScene.cpp" />
     <ClCompile Include="Src\Object\Attack\RangedAttack\RangedAttack.cpp" />
     <ClCompile Include="Src\Object\Attack\AttackBase.cpp" />
     <ClCompile Include="Src\Object\Attack\AttackManager.cpp" />
@@ -49,6 +51,8 @@
     <ClCompile Include="Src\Object\Attack\Magic\ThunderAttack.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\Scene\ResultScene\ResultWinScene.h" />
+    <ClInclude Include="Src\Scene\ResultScene\ResultScene.h" />
     <ClInclude Include="Src\Object\Attack\RangedAttack\RangedAttack.h" />
     <ClInclude Include="Src\Object\Attack\AttackBase.h" />
     <ClInclude Include="Src\Object\Attack\AttackManager.h" />

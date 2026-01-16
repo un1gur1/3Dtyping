@@ -1,6 +1,10 @@
 #include "GameScene.h"
 
 #include <DxLib.h>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
 
 #include "../../Application.h"
 #include "../../Camera/Camera.h"
@@ -13,6 +17,9 @@
 #include "../../Object/Actor/Stage/Stage.h"
 
 #include"../../Common/UiManager.h"
+#include"../SceneManager.h"
+#include"../ResultScene/ResultScene.h"
+#include"../../Input/InputManager.h"
 
 GameScene::GameScene(void)
 {
@@ -28,11 +35,10 @@ void GameScene::Init(void)
 	// カメラの初期化
 	camera_->Init();
 
+
 	// ステージ初期化
 	stage_->Init();
-
-	grid_->Init();
-
+	UIManager::GetInstance().InitGrids();
 
 	// 全てのアクターを初期化
 	for (auto actor : allActor_)
@@ -40,18 +46,29 @@ void GameScene::Init(void)
 		// 初期化
 		actor->Init();
 	}
+
 }
 
 void GameScene::Load(void)
 {
 	attackManager_ = new AttackManager();			// 攻撃管理の生成
 
-
+	skyDomeModelId_ = MV1LoadModel("Data/Model/Stage/Skydome.mv1");
+	if (skyDomeModelId_ != -1) {
+    int materialNum = MV1GetMaterialNum(skyDomeModelId_);
+    for (int i = 0; i < materialNum; ++i) {
+        COLOR_F color = MV1GetMaterialDifColor(skyDomeModelId_, i);
+        // 0.5倍で暗くする（値はお好みで調整）
+        color.r *= 0.5f;
+        color.g *= 0.5f;
+        color.b *= 0.5f;
+        MV1SetMaterialDifColor(skyDomeModelId_, i, color);
+    }
+}
 	// 生成処理
 	camera_ = new Camera();					// カメラの生成
-	stage_ = new Stage();					// ステージの生成
-	grid_ = new Grid();						// グリッドの生成
-
+	stage_ = new Stage(100,100);					// ステージの生成
+	Grid* grid_ = new Grid();						// グリッドの生成
 	Player* player_ = new Player(camera_);	// プレイヤーの生成
 	Enemy* enemy_ = new Enemy(player_);		// 敵の生成
 
@@ -76,7 +93,7 @@ void GameScene::Load(void)
 		// 読み込み
 		actor->Load();
 	}
-
+	player_->SetEnemyList(&allActor_);
 
 }
 
@@ -94,36 +111,87 @@ void GameScene::LoadEnd(void)
 		// 読み込み
 		actor->LoadEnd();
 	}
-}
 
+	if (attackManager_) {
+		std::vector<std::string> ultimateCmds = attackManager_->GetUltimateCommandNames();
+		UIManager::GetInstance().SetUltimateCommandList(ultimateCmds);
+	}
+	Player* player = nullptr;
+	for (auto actor : allActor_) {
+		if (actor && actor->IsPlayer()) player = static_cast<Player*>(actor);
+	}
+	if (player) {
+		std::vector<std::string> normalCmds = player->GetNormalCommandNames();
+		UIManager::GetInstance().SetNormalCommandList(normalCmds);
+	}
+}
 void GameScene::Update(void)
 {
+	// ポーズ切り替え
+	if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_TAB)) {
+		if (pauseState_ == PauseMenuState::None) {
+			pauseState_ = PauseMenuState::Pause;
+			pauseCursor_ = 0;
+			isPause_ = true;
+		}
+		else {
+			pauseState_ = PauseMenuState::None;
+			isPause_ = false;
+		}
+	}
 
+	// ポーズ中の操作
+	if (isPause_) {
+		// ポーズメニューの操作のみ許可
+		if (pauseState_ == PauseMenuState::Pause) {
+			if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_UP)) {
+				pauseCursor_ = (pauseCursor_ + 2) % 3;
+			}
+			if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_DOWN)) {
+				pauseCursor_ = (pauseCursor_ + 1) % 3;
+			}
+			if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_RETURN)) {
+				if (pauseCursor_ == 1) {
+					// タイトルに戻る
+					SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::TITLE);
+				}
+				else if (pauseCursor_ == 2) {
+					// ゲーム終了
+					DxLib_End(); // DxLibの終了
+					exit(0);     // プロセス終了
+				}
+			}
+			// UIManagerにカーソル位置を渡す
+			UIManager::GetInstance().SetPauseCursor(pauseCursor_);
+		}
+		// UIManagerはポーズ状態で更新
+		UIManager::GetInstance().Update(UIManager::UIState::Pause);
+		return; // ここでゲームロジックを完全停止
+	}
+
+	// --- ここから下は通常時のみ動く ---
 	// カメラの更新
 	camera_->Update();
 
 	// ステージ更新
 	stage_->Update();
+	UIManager::GetInstance().Update(UIManager::UIState::Normal);
 
 	// 全てのアクターを回す
 	for (auto actor : allActor_)
 	{
-		// 更新処理
 		actor->Update();
-
-		// 当たり判定を取るか？
 		if (actor)
 		{
-			// 当たり判定
-			//FieldCollision(actor);
 			WallCollision(actor);
 		}
 	}
-  // 攻撃管理の更新
+	// 攻撃管理の更新
 	if (attackManager_) {
-		attackManager_->UpdateAll(allActor_); // 必要な引数を渡す
+		attackManager_->UpdateAll(allActor_);
 	}
 
+	// 以下、HPやシーン遷移などの処理も通常時のみ
 	Player* player = nullptr;
 	Enemy* enemy = nullptr;
 	for (auto actor : allActor_) {
@@ -134,23 +202,44 @@ void GameScene::Update(void)
 		UIManager::GetInstance().SetPlayerStatus(player->GetHp(), player->GetMaxHp());
 	}
 	if (enemy) {
-	
-		UIManager::GetInstance().SetEnemyStatus(enemy->GetHp(), enemy->GetMaxHp(),"BOSS");
+		UIManager::GetInstance().SetEnemyStatus(enemy->GetHp(), enemy->GetMaxHp(), "BOSS");
+	}
+
+	bool isEnemyDead = false;
+	for (auto actor : allActor_) {
+		if (actor && actor->IsEnemy()) {
+			if (actor->GetHp() <= 0) {
+				isEnemyDead = true;
+				break;
+			}
+		}
+	}
+	if (isEnemyDead) {
+		SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::RESULT_WIN);
+	}
+	else if (player && player->GetHp() <= 0) {
+		Application::GetInstance()->ShakeScreen(5, 30, true, true);
+		SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::RESULT_LOSE);
 	}
 }
 
 void GameScene::Draw(void)
 {
+	//SetBackgroundColor(180, 180, 180);
+	//SetBackgroundColor(255, 255, 255);
 
-	// グリッド描画
-	grid_->Draw();
 
+	// ドーム型背景モデルの描画（カメラより前に描画）
+	if (skyDomeModelId_ != -1) {
+		MV1SetPosition(skyDomeModelId_, VGet(0.0f, 0.0f, 0.0f)); // 原点に設置
+		MV1SetScale(skyDomeModelId_, VGet(30.0f, 30.0f, 30.0f)); // 必要に応じて拡大
+		MV1DrawModel(skyDomeModelId_);
+	}
 	// カメラの描画更新
 	camera_->SetBeforeDraw();
-
+	camera_->DrawDebug();
 	// ステージ描画
 	stage_->Draw();
-
 
 	// 全てのアクターを回す
 	for (auto actor : allActor_)
@@ -165,14 +254,18 @@ void GameScene::Draw(void)
 	}
 
 	// UI描画
-	UIManager::GetInstance().Draw(UIManager::UIState::Normal);
+	if (pauseState_ == PauseMenuState::Pause) {
+		UIManager::GetInstance().Draw(UIManager::UIState::Pause);
+	}
+	else {
+		UIManager::GetInstance().Draw(UIManager::UIState::Normal);
+	}
+
 }
 
 void GameScene::Release(void)
 {
 
-	grid_->Release();
-	delete grid_;
 
 	// ステージ解放
 	stage_->Release();
@@ -187,7 +280,10 @@ void GameScene::Release(void)
 		actor->Release();
 		delete actor;
 	}
-
+	if (skyDomeModelId_ != -1) {
+		MV1DeleteModel(skyDomeModelId_);
+		skyDomeModelId_ = -1;
+	}
 	// 配列をクリア
 	allActor_.clear();
 

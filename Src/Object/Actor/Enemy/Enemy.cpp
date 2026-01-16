@@ -14,6 +14,8 @@
 Enemy::Enemy(Player* player)
 {
 	player_ = player;
+	attackManager_ = nullptr;
+	state_ = ActorState::IDLE;
 }
 
 Enemy::~Enemy(void)
@@ -27,15 +29,25 @@ void Enemy::Update(void)
 	switch (state_) {
 	case ActorState::IDLE:
 		stateTimer_ -= 1.0f / 60.0f; // 60FPS想定
+		moveTime_ += 0.5f / 60.0f; // フレームごとに加算
+		//// 振幅200, 周期2秒で左右に動く
+		pos_.x = 30.0f * sinf(moveTime_ * DX_TWO_PI / 2.0f);
+
 		if (stateTimer_ <= 0.0f) {
 			// HP閾値でULTIMATE強制遷移
-			if (hp_ < maxHp_ * 0.3f) {
+			if (hp_ < maxHp_ * 0.5f) {
 				ChangeState(ActorState::ULTIMATE);
 
 				break;
 			}
 			// 確率抽選
-			float r = 0.2;
+
+			// 乱数エンジンと分布を static で用意
+			static std::mt19937 engine{ std::random_device{}() };
+			static std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+			// 確率抽選
+			float r = dist(engine);
 			if (r < 0.3f) {
 				ChangeState(ActorState::ATTACK_NEAR);
 
@@ -74,52 +86,68 @@ void Enemy::Update(void)
 				-1,         // targetGridIdx
 				false,      // isPlayer
 				velocity,   // 速度ベクトル
-				1.0f,       // lifeTime
-				10,         // damage
+				4.0f,       // lifeTime
+				23,         // damage
 				this        // shooter
 			);
 			attack->SetPos(launchPos); // 発射開始位置を明示的に設定
 			attackManager_->Add(attack);
 			attackRegistered_ = true;
+			isAttacking_ = true;
 			stateTimer_ = 1.0f;
 		}
 		stateTimer_ -= 1.0f / 60.0f;
 		if (stateTimer_ <= 0.0f) {
 			ChangeState(ActorState::IDLE);
+			isAttacking_ = false;
 		}
 		break;
 
 
 
-	case ActorState::ATTACK_NEAR:
+	case ActorState::ATTACK_NEAR://仮で落雷
 		if (!attackRegistered_) {
-			VECTOR playerPos = player_->GetPos();
+			int thunderCount = 3 + rand() % 3; // 3～5個
+			float thunderHeight = 50.0f;
 
-			// 落雷の発射位置（プレイヤーの真上、Y座標を高くする）
-			VECTOR thunderPos = playerPos;
-			thunderPos.y += 500.0f; // 上空500の位置から
+			// グリッド交点リストを作成 -800, -400, 0, 400, 800,
+			std::vector<VECTOR> gridPoints;
+			for (int x = -800; x <= 800; x += 400) {
+				for (int z = -800; z <= 800; z += 400) {
+					VECTOR p = { (float)x, 0.0f, (float)z };
+					gridPoints.push_back(p);
+				}
+			}
 
-			// 下向きの速度ベクトル
-			VECTOR velocity = { 0.0f, -100.0f, 0.0f }; // Yマイナス方向に落下
+			for (int i = 0; i < thunderCount; ++i) {
+				int idx = rand() % gridPoints.size();
+				VECTOR thunderPos = gridPoints[idx];
+				thunderPos.y += thunderHeight; // 上空から落とす
 
-			// ThunderAttackを生成
-			auto thunder = new ThunderAttack(
-				-1,         // targetGridIdx
-				false,      // isPlayer
-				velocity,   // 速度
-				1.0f,       // lifeTime
-				20,         // damage
-				this        // shooter
-			);
-			thunder->SetPos(thunderPos); // 発射位置を明示的に設定
-			attackManager_->Add(thunder);
+				VECTOR velocity = { 0.0f, -100.0f, 0.0f };
 
+				// グリッド番号を取得
+				int gridIdx = AttackBase::CalcGridIndex(thunderPos, false);
+
+				auto thunder = new ThunderAttack(
+					gridIdx,   
+					false,
+					velocity,
+					1.0f,
+					20,
+					this
+				);
+				thunder->SetPos(thunderPos);
+				attackManager_->Add(thunder);
+			}
 			attackRegistered_ = true;
 			stateTimer_ = 1.0f;
+			isAttacking_ = true;
 		}
 		stateTimer_ -= 1.0f / 60.0f;
 		if (stateTimer_ <= 0.0f) {
 			ChangeState(ActorState::IDLE);
+			isAttacking_ = false;
 		}
 		break;
 
@@ -134,10 +162,12 @@ void Enemy::Update(void)
 				StartTypingUltimate(commandStr);
 			}
 			attackRegistered_ = true;
+			isAttacking_ = true;
 		}
 		// タイピング演出が終わったらIDLEに戻す
 		if (attackRegistered_ && typingCommand_.empty()) {
 			ChangeState(ActorState::IDLE);
+			isAttacking_ = false;
 		}
 		break;
 
@@ -187,7 +217,21 @@ void Enemy::Update(void)
     // モデルの位置を反映
 	MV1SetPosition(modelId_, pos_);
 	// 歩くアニメーション再生
-	animationController_->Play(static_cast<int>(ANIM_TYPE::WALK));
+// 攻撃状態の管理（例: isAttacking_ フラグを用意）
+	if (isAttacking_) {
+		// 攻撃アニメーション開始時のみ再生
+		if (animationController_->GetPlayType() != static_cast<int>(ANIM_TYPE::SHOT)) {
+			animationController_->Play(static_cast<int>(ANIM_TYPE::SHOT), false);
+		}
+		// アニメーションが終了したら攻撃状態解除
+		if (animationController_->IsEnd()) {
+			isAttacking_ = false;
+		}
+	}
+	else {
+		// 通常アニメーション
+		animationController_->Play(static_cast<int>(ANIM_TYPE::IDLE));
+	}
 }
 
 void Enemy::Draw(void)
@@ -216,28 +260,28 @@ void Enemy::Draw(void)
 	VECTOR start = VAdd(pos_, startCapsulePos_);
 	VECTOR end = VAdd(pos_, endCapsulePos_);
 	float radius = capsuleRadius_;
-	DrawCapsule3D(start, end, radius, 16, GetColor(0, 255, 0), false,false);
+	//DrawCapsule3D(start, end, radius, 16, GetColor(0, 255, 0), false,false);
 
-	DrawFormatString(700, 10, 0xFFFFFF, "HP: %d / %d", GetHp(), GetMaxHp());
+	//DrawFormatString(700, 10, 0xFFFFFF, "HP: %d / %d", GetHp(), GetMaxHp());
 
 
 
-	// --- 攻撃ステートのデバッグ表示 ---
-	const char* stateStr = "";
-	switch (state_) {
-	case ActorState::IDLE:         stateStr = "IDLE"; break;
-	case ActorState::ATTACK_NEAR:  stateStr = "ATTACK_NEAR"; break;
-	case ActorState::ATTACK_RANGE: stateStr = "ATTACK_RANGE"; break;
-	case ActorState::ULTIMATE:     stateStr = "ULTIMATE"; break;
-	case ActorState::STUN:         stateStr = "STUN"; break;
-	default:                       stateStr = "UNKNOWN"; break;
-	}
-	DrawFormatString(700, 30, 0x00FF00, "EnemyState: %s", stateStr);
+	//// --- 攻撃ステートのデバッグ表示 ---
+	//const char* stateStr = "";
+	//switch (state_) {
+	//case ActorState::IDLE:         stateStr = "IDLE"; break;
+	//case ActorState::ATTACK_NEAR:  stateStr = "ATTACK_NEAR"; break;
+	//case ActorState::ATTACK_RANGE: stateStr = "ATTACK_RANGE"; break;
+	//case ActorState::ULTIMATE:     stateStr = "ULTIMATE"; break;
+	//case ActorState::STUN:         stateStr = "STUN"; break;
+	//default:                       stateStr = "UNKNOWN"; break;
+	//}
+	//DrawFormatString(700, 30, 0x00FF00, "EnemyState: %s", stateStr);
 
-	// --- デバッグ用：ULTIMATEコマンド名の表示 ---
-	if (!typingCommand_.empty()) {
-		DrawFormatString(700, 50, 0xFFAA00, "UltimateCmd: %s", typingCommand_.c_str());
-	}
+	//// --- デバッグ用：ULTIMATEコマンド名の表示 ---
+	//if (!typingCommand_.empty()) {
+	//	DrawFormatString(700, 50, 0xFFAA00, "UltimateCmd: %s", typingCommand_.c_str());
+	//}
 
 }
 
@@ -259,7 +303,7 @@ void Enemy::InitTransform(void)
 
 	// グリッド外に配置（例: X=-500, Y=-400, Z=1000）
 	//pos_ = { 0.0f, -2000.0f, 4000.0f };
-	pos_ = { 0.0f, -0, 800 };
+	pos_ = { 0.0f, -0, 1200 };
 
 	// ボスサイズに拡大（例: X=30, Y=18, Z=18）
 	//scale_ = { 30, 18, 18 };
@@ -277,6 +321,7 @@ void Enemy::InitTransform(void)
 	capsuleRadius_ = 20.0f;
 
 	isCollision_ = true;
+	moveCenterX_ = pos_.x;
 }
 
 
@@ -290,7 +335,8 @@ void Enemy::InitAnimation(void)
 		static_cast<int>(ANIM_TYPE::IDLE), 0.5f, Application::PATH_MODEL + "Player/Idle.mv1");
 	animationController_->Add(
 		static_cast<int>(ANIM_TYPE::WALK), 0.5f, Application::PATH_MODEL + "Player/Walk.mv1");
-
+	animationController_->Add(
+		static_cast<int>(ANIM_TYPE::SHOT), 0.f, Application::PATH_MODEL + "Player/Shot.mv1");
 	// 初期アニメーションの再生
 	animationController_->Play(static_cast<int>(ANIM_TYPE::WALK));
 }

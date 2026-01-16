@@ -4,6 +4,7 @@
 #include <map>
 #include "AttackBase.h"
 class ActorBase;
+
 class AttackManager {
 public:
 
@@ -24,7 +25,7 @@ public:
     void UpdateAll(const std::vector<ActorBase*>& targets);
     void DrawAll();
 
-    std::string RegisterUltimateCommand(const std::string& commandString);
+    std::string RegisterUltimateCommand(const std::string& commandString, int minLength);
 
     // 全攻撃の取得
     const std::vector<AttackBase*>& GetAttacks() const { return attacks_; }
@@ -39,9 +40,11 @@ public:
 
     std::vector<std::pair<std::string, std::string>> registeredCommands_;
 
+    std::vector<std::string> GetUltimateCommandNames() const;
 private:
     std::vector<AttackBase*> attacks_; // 生ポインタで管理
 
     int commandIdCounter_ = 0;
+
 
 };

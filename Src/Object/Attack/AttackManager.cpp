@@ -1,8 +1,12 @@
 #include "AttackManager.h"
 #include "../Actor/ActorBase.h"
+#include "../Attack/Magic/ThunderAttack.h"
+#include "../../Application.h"
+#include "AttackBase.h"
 #include <fstream>
 #include <sstream>
 #include <random>
+#include <functional> 
 
 AttackManager::AttackManager() {
     ReloadCommands();
@@ -18,31 +22,7 @@ void AttackManager::Add(AttackBase* attack) {
     attacks_.push_back(attack);
 }
 
-// AttackManager.cpp
 void AttackManager::UpdateAll(const std::vector<ActorBase*>& targets) {
-
-    // 1. 弾と弾の相殺判定
-    for (size_t i = 0; i < attacks_.size(); ++i) {
-        AttackBase* a = attacks_[i];
-        if (!a || !a->IsAlive()) continue;
-        for (size_t j = i + 1; j < attacks_.size(); ++j) {
-            AttackBase* b = attacks_[j];
-            if (!b || !b->IsAlive()) continue;
-            // 距離判定（球体同士）
-            const VECTOR& apos = a->GetPos();
-            const VECTOR& bpos = b->GetPos();
-            float dx = apos.x - bpos.x;
-            float dy = apos.y - bpos.y;
-            float dz = apos.z - bpos.z;
-            float distSq = dx * dx + dy * dy + dz * dz;
-            float radiusSum = 100.0f * 2; // 弾の半径同士（仮に両方100.0fとする）
-            if (distSq < radiusSum * radiusSum) {
-                a->Kill();
-                b->Kill();
-            }
-        }
-    }
-	// 2. 弾とキャラクターの当たり判定
     for (auto* attack : attacks_) {
         if (!attack || !attack->IsAlive()) continue;
         attack->Update();
@@ -51,30 +31,69 @@ void AttackManager::UpdateAll(const std::vector<ActorBase*>& targets) {
             if (!target || !target->GetisCollision()) continue;
             if (attack->GetShooter() == target) continue;
 
-            if (attack->GetBulletType() == AttackBase::BulletType::PLAYER && !target->IsEnemy()) continue;
-            if (attack->GetBulletType() == AttackBase::BulletType::ENEMY && !target->IsPlayer()) continue;
+            // ブロードフェーズ: グリッド判定
+            if (attack->collisionType_ == AttackBase::CollisionType::Grid || attack->collisionType_ == AttackBase::CollisionType::Both) {
+                // 例: グリッド座標が一致していれば詳細判定へ
+                if (attack->GetTargetGridIdx() == target->gridPos_.x && attack->GetTargetGridIdx() == target->gridPos_.z) {
+                    // ローフェーズ: 球体判定
+                    if (attack->collisionType_ == AttackBase::CollisionType::Both || attack->collisionType_ == AttackBase::CollisionType::Sphere) {
+                        const VECTOR& apos = attack->GetPos();
+                        const VECTOR& tpos = target->GetPos();
+                        float dx = apos.x - tpos.x;
+                        float dy = apos.y - tpos.y;
+                        float dz = apos.z - tpos.z;
+                        float distSq = dx * dx + dy * dy + dz * dz;
+                        float radiusSum = 100.0f + target->GetCapsuleRadius();
+                        if (distSq < radiusSum * radiusSum) {
+                            target->ApplyDamage(attack->GetDamage());
+                            attack->Kill();
+                            Application::GetInstance()->ShakeScreen(5, 30, true, true);
 
-            // 距離判定（球体同士）
-            const VECTOR& apos = attack->GetPos();
-            const VECTOR& tpos = target->GetPos();
-            float dx = apos.x - tpos.x;
-            float dy = apos.y - tpos.y;
-            float dz = apos.z - tpos.z;
-            float distSq = dx * dx + dy * dy + dz * dz;
-            float radiusSum = 100.0f + target->GetCapsuleRadius();
-            if (distSq < radiusSum * radiusSum) {
-                target->ApplyDamage(attack->GetDamage());
-                attack->Kill();
-                break;
+
+                            break;
+                        }
+                    }
+                    else {
+                        // グリッドのみで判定
+                        target->ApplyDamage(attack->GetDamage());
+                        attack->Kill();
+                        Application::GetInstance()->ShakeScreen(5, 30, true, true);
+
+
+                        break;
+                    }
+                }
+            }
+            else if (attack->collisionType_ == AttackBase::CollisionType::Sphere) {
+                // 球体判定のみ
+                const VECTOR& apos = attack->GetPos();
+                const VECTOR& tpos = target->GetPos();
+                float dx = apos.x - tpos.x;
+                float dy = apos.y - tpos.y;
+                float dz = apos.z - tpos.z;
+                float distSq = dx * dx + dy * dy + dz * dz;
+                float radiusSum = 100.0f + target->GetCapsuleRadius();
+                if (distSq < radiusSum * radiusSum) {
+                    target->ApplyDamage(attack->GetDamage());
+                    attack->Kill();
+                    Application::GetInstance()->ShakeScreen(5, 30, true, true);
+
+
+                    break;
+                }
             }
         }
     }
 }
 
 
+
+
 void AttackManager::DrawAll() {
     for (auto* attack : attacks_) {
-        if (attack) attack->Draw();
+        if (attack && attack->IsAlive()) {
+            attack->Draw();
+        }
     }
 }
 
@@ -86,38 +105,39 @@ void AttackManager::Clear() {
 }
 
 
-std::string AttackManager::RegisterUltimateCommand(const std::string& commandString) {
-    // 一意ID生成
+
+
+std::string AttackManager::RegisterUltimateCommand(const std::string& commandString, int minLength) {
+    if (commandString.length() < minLength) return "";
+    for (const auto& pair : registeredCommands_) {
+        if (pair.first == commandString) return "";
+    }
     ++commandIdCounter_;
     char buf[32];
     sprintf_s(buf, "PLAYER_ULT_%04d", commandIdCounter_);
     std::string commandId = buf;
 
-    // ランダム値生成
-    static std::random_device rd;
-    static std::mt19937 mt(rd());
-    std::uniform_int_distribution<int> damageDist(50, 200);      // 例: 50～200ダメージ
-    std::uniform_real_distribution<float> speedDist(10.0f, 40.0f); // 例: 10.0～40.0 速度
+    // ハッシュ値生成
+    std::size_t hashValue = std::hash<std::string>{}(commandString);
 
-    int randomDamage = damageDist(mt);
-    float randomSpeed = speedDist(mt);
+    // ダメージと速度をハッシュ値から決定
+    int damage = 50 + (hashValue % 151); // 50～200
+    float speed = 10.0f + ((hashValue / 151) % 31); // 10.0～40.0
 
-    // コマンドデータを保存
     UltimateCommandData data;
     data.commandId = commandId;
-    data.damage = randomDamage;
-    data.speed = randomSpeed;
+    data.damage = damage;
+    data.speed = speed;
     ultimateCommandDataMap_[commandId] = data;
 
-    // 登録
     registeredCommands_.emplace_back(commandString, commandId);
 
-    // 必要ならCSVファイルにも追記
     std::ofstream ofs("Data/CSV/Ultimate.csv", std::ios::app);
-    ofs << commandString << "," << commandId << "," << randomDamage << "," << randomSpeed << std::endl;
+    ofs << commandString << "," << commandId << "," << damage << "," << speed << std::endl;
 
     return commandId;
 }
+
 
 void AttackManager::LoadCommandsFromCSV(const std::string& path) {
     ultimateCommandDataMap_.clear();
@@ -167,3 +187,10 @@ void AttackManager::ReloadCommands() {
     LoadCommandsFromCSV("Data/CSV/Ultimate.csv");
 }
 
+std::vector<std::string> AttackManager::GetUltimateCommandNames() const {
+    std::vector<std::string> names;
+    for (const auto& pair : registeredCommands_) {
+        names.push_back(pair.first); // コマンド名
+    }
+    return names;
+}

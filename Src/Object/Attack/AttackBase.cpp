@@ -34,3 +34,12 @@ void AttackBase::Update()
     // 攻撃中はグリッドを攻撃状態に
     UIManager::GetInstance().SetGridState(targetGridIdx_, Grid::GridState::Attack, isPlayer_);
 }
+int AttackBase::CalcGridIndex(const VECTOR& pos, bool isPlayer)
+{
+    // 例: グリッドは -800, -400, 0, 400, 800 の5x5配置、1マス400
+    int gridX = static_cast<int>((pos.x + 800.0f) / 400.0f);
+    int gridZ = static_cast<int>((pos.z + 800.0f) / 400.0f);
+    // 範囲外チェック
+    if (gridX < 0 || gridX >= 5 || gridZ < 0 || gridZ >= 5) return -1;
+    return gridZ * 5 + gridX;
+}

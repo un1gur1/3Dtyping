@@ -9,6 +9,7 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 
 #include "../../../Application.h"
 #include "../../../Input/InputManager.h"
@@ -17,6 +18,7 @@
 #include "../../Common/AnimationController.h"
 #include"../../Attack/AttackManager.h"
 #include "../../Attack/RangedAttack/RangedAttack.h"
+#include "../../Attack/Magic/ThunderAttack.h"
 #include "../../Attack/UltimateAttack/UltimateAttack.h"
 
 #include "../../../Camera/Camera.h"
@@ -210,7 +212,7 @@ void Player::Update(void)
 			isRegisteringUltimate_ = false;
 			if (attackManager_ && registerInputBuf_[0] != '\0') {
 				std::string commandStr(registerInputBuf_);
-				std::string commandId = attackManager_->RegisterUltimateCommand(commandStr);
+				std::string commandId = attackManager_->RegisterUltimateCommand(commandStr,5);
 				attackManager_->ReloadCommands();
 
 				// コマンドIDでデータを取得
@@ -248,7 +250,7 @@ void Player::Update(void)
 		// ここでreturnして他の処理をスキップしてもOK
 		return;
 	}
-
+	int gridIdx_ = AttackBase::CalcGridIndex(pos_, true);
 	// グリッド移動処理
 	if (isMovingOnGrid_) {
 		// 目標グリッド座標をワールド座標に変換
@@ -395,8 +397,10 @@ void Player::Move(void)
 						data.damage,// ダメージ
 						this        // 発射者
 					);
+					Application::GetInstance()->ShakeScreen(40, 40, true, true);
 					ultimate->SetPos(pos); // 発射位置を明示的に設定
 					attackManager_->Add(ultimate);
+					isAttacking_ = true;
 				}
 			}
 
@@ -455,26 +459,37 @@ void Player::Move(void)
 			}
 			break;
 			case CommandType::SHOOT:
-				if (attackManager_) {
-					VECTOR pos = GetPos();
-					pos.y += 80;
-					pos.z += 60;
-					VECTOR vel = { 0, 0, 10 };
-					int damage = 5;
-					pos.z += 100;
-					auto ranged = new RangedAttack(
-						-1,
-						true,
-						vel,
-						1.0f,
-						damage,
-						this
-					);
-					ranged->SetPos(pos);
-					attackManager_->Add(ranged);
+	
+				if (attackManager_ && enemyList_ && !enemyList_->empty()) {
+					// 最初に見つかった敵をターゲット
+					ActorBase* targetEnemy = nullptr;
+					for (auto* actor : *enemyList_) {
+						if (actor && actor->IsEnemy()) {
+							targetEnemy = actor;
+							break;
+						}
+					}
+					if (targetEnemy) {
+						VECTOR pos = targetEnemy->GetPos();
+						pos.y += 150.0f; // 敵の頭上
+						VECTOR vel = { 0.0f, -100.0f, 0.0f };
+						int damage = 10;
+						int gridIdx = AttackBase::CalcGridIndex(pos, false);
 
-					isBulletFired_ = true;
-					isAttacking_ = true;
+						auto thunder = new ThunderAttack(
+							gridIdx,
+							true,      // isPlayer
+							vel,
+							2.0f,      // lifeTime
+							damage,
+							this
+						);
+						thunder->SetPos(pos);
+						attackManager_->Add(thunder);
+
+						isBulletFired_ = true;
+						isAttacking_ = true;
+					}
 				}
 				break;
 			case CommandType::ATTACK:
@@ -489,7 +504,7 @@ void Player::Move(void)
 						-1,
 						true,
 						vel,
-						1.0f,
+						3.0f,
 						damage,
 						this
 					);
@@ -500,6 +515,7 @@ void Player::Move(void)
 					isAttacking_ = true;
 				}
 				break;
+
 			case CommandType::MOVE:
 			{
 				// moveWordDict_ で座標取得して移動
@@ -561,3 +577,10 @@ ActorBase::ActorState Player::GetState() const {
 	return state_;
 }
 
+std::vector<std::string> Player::GetNormalCommandNames() const {
+	std::vector<std::string> names;
+	for (const auto& pair : commandMap_) {
+		names.push_back(pair.first); // コマンド名
+	}
+	return names;
+}

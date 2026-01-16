@@ -1,5 +1,5 @@
 #include "Camera.h"
-
+#include "../Application.h"
 #include "../Utility/AsoUtility.h"
 #include "../Input/InputManager.h"
 
@@ -89,7 +89,7 @@ void Camera::SetBeforeDrawFree(void)
 void Camera::DrawDebug(void)
 {
 
-	DrawFormatString(
+	/*DrawFormatString(
 		0, 10, 0xffffff,
 		"カメラ座標　 ：(%.1f, %.1f, %.1f)",
 		pos_.x, pos_.y, pos_.z
@@ -102,7 +102,7 @@ void Camera::DrawDebug(void)
 		AsoUtility::Rad2DegF(angle_.z)
 	);
 
-	DrawSphere3D(targetPos_, 20.0f, 10, 0xff0000, 0xff0000, true);
+	DrawSphere3D(targetPos_, 20.0f, 10, 0xff0000, 0xff0000, true);*/
 
 }
 
@@ -147,6 +147,24 @@ void Camera::SetBeforeDrawFollow(void)
 
 	// カメラの上方向を計算
 	VECTOR up = VTransform(AsoUtility::DIR_U, mat);
+
+	// シェイクオフセット取得
+	int shakeX = 0, shakeY = 0;
+	Application* app = Application::GetInstance();
+	if (app) {
+		// シェイク中ならランダムオフセットを計算
+		if (app->shakeDuration_ > 0) {
+			shakeX = app->isShakeX_ ? (rand() % (app->shakePower_ * 2 + 1)) - app->shakePower_ : 0;
+			shakeY = app->isShakeY_ ? (rand() % (app->shakePower_ * 2 + 1)) - app->shakePower_ : 0;
+			app->shakeDuration_--;
+		}
+	}
+
+	// カメラ座標に加算
+	pos_.x += shakeX;
+	pos_.y += shakeY;
+	targetPos_.x += shakeX;
+	targetPos_.y += shakeY;
 
 	// カメラの設定(位置と注視点による制御)
 	SetCameraPositionAndTargetAndUpVec(
@@ -199,7 +217,6 @@ void Camera::MoveXYZDirectionPad(void)
 		InputManager::GetInstance()->GetJPadInputState(InputManager::JOYPAD_NO::PAD1);
 
 	VECTOR dir = AsoUtility::VECTOR_ZERO;
-
 
 	const float ROT_POW_DEG = 2.0f;
 	const float rotPow = ROT_POW_DEG * DX_PI_F / 180.0f;

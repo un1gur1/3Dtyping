@@ -9,7 +9,7 @@ class Camera;
 class Stage;
 class ActorBase;
 class Grid;
-
+class ResultScene;
 class GameScene : public SceneBase
 {
 public:
@@ -23,6 +23,14 @@ public:
 	void Draw(void)		override;	// 描画
 	void Release(void)	override;	// 解放
 
+	enum class PauseMenuState {
+		None,
+		Pause,
+	};
+
+	PauseMenuState pauseState_ = PauseMenuState::None;
+	int pauseCursor_ = 0; // 0:コマンド一覧, 1:タイトルに戻る
+	bool isPause_ = false;
 private:
 	// カメラ
 	Camera* camera_;
@@ -32,8 +40,7 @@ private:
 
 	// グリッド
 	Grid* grid_;
-
-
+	int skyDomeModelId_ = -1;
 	// 全てのアクター
 	std::vector<ActorBase*> allActor_;
 	AttackManager* attackManager_; 
@@ -42,4 +49,5 @@ private:
 
 	// 衝突判定(壁)
 	void WallCollision(ActorBase* actor);
+
 };

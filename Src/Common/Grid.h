@@ -1,41 +1,33 @@
 #pragma once
 #include <DxLib.h>
-class Grid
-{
-
+class Camera;
+class Grid {
 public:
-	enum class GridState {
-		Normal,
-		Warning,
-		Attack
-	};
+    enum class GridState {
+        Normal,
+        Warning,
+        Attack
+    };
+    static constexpr int MAGIC_CIRCLE_WIDTH = 1500;
+    static constexpr int MAGIC_CIRCLE_HEIGHT = 1500;
 
-	static VECTOR GetWorldPosFromIndex(int index, bool isPlayerSide);
+    // メンバ変数
+    VECTOR pos_;         // 中心座標
+    float angle_;        // 回転角度
+    float scale_;        // 基本スケール
+    int imageHandle_;    // 魔法陣画像ハンドル
 
-	// 線の長さ
-	static constexpr float LEN = 3200.0f;
+    GridState state_;    // 現在の状態
 
-	// 線の長さの半分
-	static constexpr float HLEN = LEN / 2.0f;
+    void Init(float x, float y);
+    void Update();
+    void Draw();
 
-	// 線の間隔
-	static constexpr float TERM = 400.0f;
+    static VECTOR GetWorldPosFromIndex(int index, bool isPlayerSide);
 
-	// 線の数
-	static const int NUM = static_cast<int>(LEN / TERM);
+ 
 
-	// 線の数の半分
-	static const int HNUM = NUM / 2;
-
-	// コンストラクタ
-	Grid(void);
-
-	// デストラクタ
-	~Grid(void);
-
-	void Init(void);
-	void Update(void);
-	void Draw(void);
-	void Release(void);
+private:
+	Camera* camera_;
 
 };

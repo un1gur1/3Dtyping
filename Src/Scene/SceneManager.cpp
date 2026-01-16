@@ -5,7 +5,8 @@
 #include "Loading/Loading.h"
 #include "TitleScene/TitleScene.h"
 #include "GameScene/GameScene.h"
-
+#include "ResultScene/ResultScene.h"
+#include "ResultScene/ResultWinScene.h"
 SceneManager* SceneManager::instance_ = nullptr;
 
 SceneManager::SceneManager(void)
@@ -131,6 +132,12 @@ void SceneManager::ChangeScene(SCENE_ID nextId)
 		break;
 	case SceneManager::SCENE_ID::GAME:
 		scene_ = new GameScene();
+		break;
+	case SceneManager::SCENE_ID::RESULT_WIN:
+		scene_ = new ResultWinScene();
+		break;
+	case SceneManager::SCENE_ID::RESULT_LOSE:
+		scene_ = new ResultScene();
 		break;
 	default:
 		break;

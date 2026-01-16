@@ -69,7 +69,7 @@ public:
 	bool isInputActive_ = false; // 入力中フラグ
 	bool isFirstInputFrame_ = true;
 	void SetAttackManager(AttackManager* manager) { attackManager_ = manager; }
-
+	std::vector<std::string> GetNormalCommandNames() const;
 	enum class CommandType {
 		MOVE_UP,
 		MOVE_DOWN,
@@ -98,6 +98,8 @@ public:
 	ActorState GetState() const override;
 	bool IsPlayer() const override { return true; }
 	bool IsEnemy() const override { return false; }
+	void SetEnemyList(std::vector<ActorBase*>* list) { enemyList_ = list; }
+
 
 private:
 	bool isBulletFired_ = false; // 弾発射フラグ追加
@@ -132,6 +134,6 @@ private:
 	RangedAttack* rangedAttack_;
 	UltimateAttack* ultimateAttack_;
 
-
+	std::vector<ActorBase*>* enemyList_ = nullptr;
 
 };

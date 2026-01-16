@@ -1,13 +1,13 @@
 #pragma once
 #include <DxLib.h>
-
+#include <random>
 class ActorBase;
 
 class Camera
 {
 
 public:
-
+	
 	// カメラの初期座標（例：斜め上後ろから見下ろす位置）
 	static constexpr VECTOR DEFAULT_POS = { 0.0f, 2500.0f, -3000.0f };
 	
