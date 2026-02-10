@@ -19,13 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-<<<<<<< HEAD
     <ClCompile Include="Src\Scene\ResultScene\ResultWinScene.cpp" />
     <ClCompile Include="Src\Scene\ResultScene\ResultScene.cpp" />
-=======
     <ClCompile Include="Src\Application.cpp" />
     <ClCompile Include="Src\main.cpp" />
->>>>>>> 1e0835fdb7094ca72ea1fc08d91ab149112a0f6b
     <ClCompile Include="Src\Object\Attack\RangedAttack\RangedAttack.cpp" />
     <ClCompile Include="Src\Object\Attack\AttackBase.cpp" />
     <ClCompile Include="Src\Object\Attack\AttackManager.cpp" />
