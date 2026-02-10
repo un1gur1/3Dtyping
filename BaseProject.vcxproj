@@ -19,8 +19,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+<<<<<<< HEAD
     <ClCompile Include="Src\Scene\ResultScene\ResultWinScene.cpp" />
     <ClCompile Include="Src\Scene\ResultScene\ResultScene.cpp" />
+=======
+    <ClCompile Include="Src\Application.cpp" />
+    <ClCompile Include="Src\main.cpp" />
+>>>>>>> 1e0835fdb7094ca72ea1fc08d91ab149112a0f6b
     <ClCompile Include="Src\Object\Attack\RangedAttack\RangedAttack.cpp" />
     <ClCompile Include="Src\Object\Attack\AttackBase.cpp" />
     <ClCompile Include="Src\Object\Attack\AttackManager.cpp" />
@@ -32,11 +37,9 @@
     <ClCompile Include="Src\Scene\GameScene\GameScene.cpp" />
     <ClCompile Include="Src\Scene\Loading\Loading.cpp" />
     <ClCompile Include="Src\Utility\MatrixUtility.cpp" />
-    <ClCompile Include="Src\Application.cpp" />
     <ClCompile Include="Src\Common\Fader.cpp" />
     <ClCompile Include="Src\Common\Quaternion.cpp" />
     <ClCompile Include="Src\Common\Vector2.cpp" />
-    <ClCompile Include="Src\main.cpp" />
     <ClCompile Include="Src\Camera\Camera.cpp" />
     <ClCompile Include="Src\Input\InputManager.cpp" />
     <ClCompile Include="Src\Scene\SceneManager.cpp" />

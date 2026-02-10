@@ -64,6 +64,10 @@ migiyokoidou,MOVE_RIGHT,,,,
 migiyokoidou,MOVE_RIGHT,,,,
 hidariyokoidou,MOVE_LEFT,,,,
 hidariyokoidou,MOVE_LEFT,,,,
+<<<<<<< HEAD
 rakurai,SHOOT,,,,
 kaminarikougeki,SHOOT,,,,
 kaminarikougeki,SHOOT,,,,
+=======
+a,PLAYER_ULT_0001
+>>>>>>> 1e0835fdb7094ca72ea1fc08d91ab149112a0f6b
