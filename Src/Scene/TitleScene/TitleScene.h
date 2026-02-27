@@ -30,6 +30,10 @@ public:
 	int pauseCursor_ = 0;
 	bool isPause_ = false;
 
+	bool isEntryMode_ = false;           // 必殺技登録モードフラグ
+	char entryInputBuf_[128] = { 0 };      // 必殺技名入力用バッファ
+	int entryKeyInputHandle_ = -1;       // 必殺技名入力用ハンドル
+
 private:
 	AttackManager* attackManager_;
 	int handle_;

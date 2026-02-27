@@ -115,29 +115,48 @@ void TitleScene::ProcessFloorCommand(const std::string& rawInput)
         return;
     }
 
-    // 優先: 床にある通常コマンド (typeStr) によるアクション
     if (foundOnFloor) {
         const std::string type = it->second;
-        // 簡易ルール:
-        // - 移動/攻撃系のタイプならプレイ開始に移行
-        // - type が特定のキーワードなら専用処理
+
+        // 新規コマンド分岐
+        if (input == "START") {
+            lastRegisteredCommand_ = "ゲーム開始: " + input;
+            SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
+            return;
+        }
+        if (input == "EXIT") {
+            lastRegisteredCommand_ = "ゲーム終了: " + input;
+            // DxLib の終了処理
+            DxLib_End();
+            return;
+        }
+        if (input == "PAUSE") {
+            lastRegisteredCommand_ = "コマンド一覧表示: " + input;
+            isPause_ = true;
+            return;
+        }
+        if (input == "ENTRY") {
+            lastRegisteredCommand_ = "必殺技登録フェーズへ: " + input;
+            // 必殺技登録モードへ遷移する処理を追加（例: フラグを立てる等）
+            isEntryMode_ = true; // 例: 新規フラグ
+            return;
+        }
+
+        // 既存の分岐はそのまま
         if (type.rfind("MOVE", 0) == 0 || type == "ATTACK" || type == "SHOOT" || type == "MOVE_RANDOM" || type == "DODGE") {
             lastRegisteredCommand_ = "床コマンド確認: " + input + " → ゲーム開始";
             SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
             return;
         }
-        // 登録トリガーを床コマンドで表現したい場合 (例: type == "REGISTER")
         if (type == "REGISTER" || type == "ULTIMATE") {
-            // 必殺技登録モードへ（ここではタイトル上で直接登録したければ専用処理を記述）
             lastRegisteredCommand_ = "必殺技登録トリガー検出: " + input;
-            // 必要ならここで登録モードへ遷移する処理を追加
             return;
         }
 
-        // 既定アクションがない場合は情報表示
         lastRegisteredCommand_ = "床コマンド検出: " + input + " (type:" + type + ")";
         return;
     }
+
 
     // 最後に必殺技名でヒットした場合の処理
     if (foundUltimate) {
@@ -150,6 +169,48 @@ void TitleScene::ProcessFloorCommand(const std::string& rawInput)
 
 void TitleScene::Update(void)
 {
+    // 必殺技登録モード
+    if (isEntryMode_) {
+        // 入力ハンドルがなければ作成
+        if (entryKeyInputHandle_ == -1) {
+            entryKeyInputHandle_ = MakeKeyInput(32, FALSE, FALSE, FALSE, FALSE);
+            SetActiveKeyInput(entryKeyInputHandle_);
+            entryInputBuf_[0] = '\0';
+        }
+        GetKeyInputString(entryInputBuf_, entryKeyInputHandle_);
+        // Enterで決定
+        if (CheckKeyInput(entryKeyInputHandle_) == 1) {
+            std::string entryName(entryInputBuf_);
+            std::string commandId = attackManager_->RegisterUltimateCommand(entryName, 6);
+            if (!commandId.empty()) {
+                // 登録成功
+                const auto& data = attackManager_->ultimateCommandDataMap_[commandId];
+                lastRegisteredCommand_ = "必殺技登録完了: " + entryName + " [DMG:" + std::to_string(data.damage) + ", SPD:" + std::to_string(data.speed) + "]";
+            }
+            else {
+                lastRegisteredCommand_ = "必殺技名が重複しているか、6文字未満です";
+            }
+            // 入力ハンドルリセット
+            DeleteKeyInput(entryKeyInputHandle_);
+            SetActiveKeyInput(-1);
+            entryKeyInputHandle_ = -1;
+            entryInputBuf_[0] = '\0';
+            isEntryMode_ = false; // モード終了
+            return;
+        }
+        // Escでキャンセル
+        if (CheckHitKey(KEY_INPUT_ESCAPE)) {
+            DeleteKeyInput(entryKeyInputHandle_);
+            SetActiveKeyInput(-1);
+            entryKeyInputHandle_ = -1;
+            entryInputBuf_[0] = '\0';
+            isEntryMode_ = false;
+            lastRegisteredCommand_ = "必殺技登録キャンセル";
+            return;
+        }
+        return; // 通常処理はスキップ
+    }
+
     // 常時コマンド入力バーで操作（Init で MakeKeyInput されている前提）
     if (keyInputHandle_ == -1) {
         keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
@@ -205,7 +266,7 @@ void TitleScene::Draw(void)
 {
     SetBackgroundColor(0, 0, 0);
 
-    DrawGraph(0, 0, handle_, true);
+    //DrawGraph(0, 0, handle_, true);
 
     // 常時表示するコマンド入力バー
     DrawString(50, 880, "コマンド入力バー: コマンドをタイプしてEnterで決定（Escでキャンセル）", GetColor(255, 255, 255));

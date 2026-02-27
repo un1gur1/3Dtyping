@@ -11,10 +11,10 @@ zencin,MOVE_UP,,,,MOVE_RANDOM
 zencinn,MOVE_UP,,,,SHOOT
 koutae,MOVE_DOWN,,,,MOVE
 koutay,MOVE_DOWN,,,,ATTACK
-koutaei,MOVE_DOWN,,,,
-koutai,MOVE_DOWN,,,,
-kouwutai,MOVE_DOWN,,,,
-kowutay,MOVE_DOWN,,,,
+koutaei,MOVE_DOWN,,,,START
+koutai,MOVE_DOWN,,,,EXIT
+kouwutai,MOVE_DOWN,,,,PAUSE
+kowutay,MOVE_DOWN,,,,ENTRY
 miginiidou,MOVE_RIGHT,,,,
 miginiidou,MOVE_RIGHT,,,,
 miginiido,MOVE_RIGHT,,,,
@@ -64,10 +64,16 @@ migiyokoidou,MOVE_RIGHT,,,,
 migiyokoidou,MOVE_RIGHT,,,,
 hidariyokoidou,MOVE_LEFT,,,,
 hidariyokoidou,MOVE_LEFT,,,,
-<<<<<<< HEAD
 rakurai,SHOOT,,,,
 kaminarikougeki,SHOOT,,,,
 kaminarikougeki,SHOOT,,,,
-=======
-a,PLAYER_ULT_0001
->>>>>>> 1e0835fdb7094ca72ea1fc08d91ab149112a0f6b
+hajimeru,START,,,,
+hazimeru,START,,,,
+suta-to,START,,,,
+owaru,EXIT,,,,
+yameru,EXIT,,,,
+oshimai,EXIT,,,,
+syuuryou,EXIT,,,,
+touroku,ENTRY,,,,
+hissatu,ENTRY,,,,
+hissatsu,ENTRY,,,,
