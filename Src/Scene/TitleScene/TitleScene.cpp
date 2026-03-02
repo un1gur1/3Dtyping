@@ -7,244 +7,114 @@
 #include "../../Object/Attack/AttackManager.h"
 #include "../../Common/UiManager.h"
 
-#include <fstream>
-#include <sstream>
-#include <algorithm>
-
 TitleScene::TitleScene(void)
 {
-    handle_ = -1;
+	handle_ = -1;
     attackManager_ = new AttackManager();			// 攻撃管理の生成
+
 }
 
 TitleScene::~TitleScene(void)
 {
-    // 入力ハンドルが残ってたら掃除
-    if (keyInputHandle_ != -1) {
-        DeleteKeyInput(keyInputHandle_);
-        SetActiveKeyInput(-1);
-    }
-    delete attackManager_;
 }
 
 void TitleScene::Init(void)
 {
-    // タイトル到着時に常時コマンド入力バーを有効にする
-    if (keyInputHandle_ == -1) {
-        keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
-        SetActiveKeyInput(keyInputHandle_);
-        inputBuf_[0] = '\0';
-        romanjiConverter_.clear();
-    }
 }
 
 void TitleScene::Load(void)
 {
-    handle_ = LoadGraph("Data/Image/Title2.png");
-    // 床コマンドを読み込む（Player と同じ CSV フォーマットを使う）
-    LoadFloorCommands("Data/CSV/Word.csv");
+	handle_ = LoadGraph("Data/Image/Title2.png");
 }
 
 void TitleScene::LoadEnd(void)
 {
-    Init();
-}
-
-void TitleScene::LoadFloorCommands(const std::string& path)
-{
-    floorCommandMap_.clear();
-    floorCommands_.clear();
-
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        lastRegisteredCommand_ = "床コマンドCSV読み込み失敗: " + path;
-        return;
-    }
-    std::string line;
-    while (std::getline(file, line)) {
-        std::istringstream iss(line);
-        std::string word, typeStr;
-        if (std::getline(iss, word, ',') &&
-            std::getline(iss, typeStr, ',')) {
-            // trim whitespace
-            auto trim = [](std::string& s) {
-                s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch); }));
-                s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch); }).base(), s.end());
-                };
-            trim(word); trim(typeStr);
-            if (!word.empty()) {
-                floorCommandMap_[word] = typeStr;
-                floorCommands_.push_back(word);
-            }
-        }
-    }
-    lastRegisteredCommand_ = "床コマンド読み込み完了";
-}
-
-void TitleScene::ProcessFloorCommand(const std::string& rawInput)
-{
-    // 生入力をそのまま比較（必要なら小文字化や全角→半角等の正規化を追加）
-    std::string input = rawInput;
-    // trim
-    input.erase(input.begin(), std::find_if(input.begin(), input.end(), [](int ch) { return !std::isspace(ch); }));
-    input.erase(std::find_if(input.rbegin(), input.rend(), [](int ch) { return !std::isspace(ch); }).base(), input.end());
-    if (input.empty()) {
-        lastRegisteredCommand_ = "入力が空です";
-        return;
-    }
-
-    // 1) 床コマンドに存在するかチェック
-    auto it = floorCommandMap_.find(input);
-    bool foundOnFloor = (it != floorCommandMap_.end());
-
-    // 2) 登録済み必殺技に存在するかチェック
-    bool foundUltimate = false;
-    std::string foundUltimateId;
-    if (attackManager_) {
-        for (const auto& p : attackManager_->registeredCommands_) {
-            if (p.first == input) {
-                foundUltimate = true;
-                foundUltimateId = p.second;
-                break;
-            }
-        }
-    }
-
-    if (!foundOnFloor && !foundUltimate) {
-        lastRegisteredCommand_ = "床にそのコマンドはありません: " + input;
-        return;
-    }
-
-    if (foundOnFloor) {
-        const std::string type = it->second;
-
-        // 新規コマンド分岐
-        if (input == "START") {
-            lastRegisteredCommand_ = "ゲーム開始: " + input;
-            SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
-            return;
-        }
-        if (input == "EXIT") {
-            lastRegisteredCommand_ = "ゲーム終了: " + input;
-            // DxLib の終了処理
-            DxLib_End();
-            return;
-        }
-        if (input == "PAUSE") {
-            lastRegisteredCommand_ = "コマンド一覧表示: " + input;
-            isPause_ = true;
-            return;
-        }
-        if (input == "ENTRY") {
-            lastRegisteredCommand_ = "必殺技登録フェーズへ: " + input;
-            // 必殺技登録モードへ遷移する処理を追加（例: フラグを立てる等）
-            isEntryMode_ = true; // 例: 新規フラグ
-            return;
-        }
-
-        // 既存の分岐はそのまま
-        if (type.rfind("MOVE", 0) == 0 || type == "ATTACK" || type == "SHOOT" || type == "MOVE_RANDOM" || type == "DODGE") {
-            lastRegisteredCommand_ = "床コマンド確認: " + input + " → ゲーム開始";
-            SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
-            return;
-        }
-        if (type == "REGISTER" || type == "ULTIMATE") {
-            lastRegisteredCommand_ = "必殺技登録トリガー検出: " + input;
-            return;
-        }
-
-        lastRegisteredCommand_ = "床コマンド検出: " + input + " (type:" + type + ")";
-        return;
-    }
-
-
-    // 最後に必殺技名でヒットした場合の処理
-    if (foundUltimate) {
-        // 必殺技名を選択した扱いにする（表示のみ）
-        lastRegisteredCommand_ = "必殺技選択: " + input + " (ID:" + foundUltimateId + ")";
-        // ここに「選択してゲームで使う」等の処理を追加可能
-        return;
-    }
+	Init();
 }
 
 void TitleScene::Update(void)
 {
-    // 必殺技登録モード
-    if (isEntryMode_) {
-        // 入力ハンドルがなければ作成
-        if (entryKeyInputHandle_ == -1) {
-            entryKeyInputHandle_ = MakeKeyInput(32, FALSE, FALSE, FALSE, FALSE);
-            SetActiveKeyInput(entryKeyInputHandle_);
-            entryInputBuf_[0] = '\0';
+    // --- 必殺技コマンド登録モード ---
+    if (!isRegisteringUltimate_) {
+        // F1で登録モード開始
+        if (CheckHitKey(KEY_INPUT_F1)) {
+            isRegisteringUltimate_ = true;
+            keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
+            SetActiveKeyInput(keyInputHandle_);
+            inputBuf_[0] = '\0';
         }
-        GetKeyInputString(entryInputBuf_, entryKeyInputHandle_);
-        // Enterで決定
-        if (CheckKeyInput(entryKeyInputHandle_) == 1) {
-            std::string entryName(entryInputBuf_);
-            std::string commandId = attackManager_->RegisterUltimateCommand(entryName, 6);
-            if (!commandId.empty()) {
-                // 登録成功
-                const auto& data = attackManager_->ultimateCommandDataMap_[commandId];
-                lastRegisteredCommand_ = "必殺技登録完了: " + entryName + " [DMG:" + std::to_string(data.damage) + ", SPD:" + std::to_string(data.speed) + "]";
-            }
-            else {
-                lastRegisteredCommand_ = "必殺技名が重複しているか、6文字未満です";
-            }
-            // 入力ハンドルリセット
-            DeleteKeyInput(entryKeyInputHandle_);
+    }
+    else {
+        // 入力受付中
+        GetKeyInputString(inputBuf_, keyInputHandle_);
+        // Enterで登録
+        if (CheckKeyInput(keyInputHandle_) == 1) {
+            DeleteKeyInput(keyInputHandle_);
             SetActiveKeyInput(-1);
-            entryKeyInputHandle_ = -1;
-            entryInputBuf_[0] = '\0';
-            isEntryMode_ = false; // モード終了
-            return;
+            isRegisteringUltimate_ = false;
+            if (attackManager_ && inputBuf_[0] != '\0') {
+                std::string commandStr(inputBuf_);
+                std::string commandId = attackManager_->RegisterUltimateCommand(commandStr, 5);
+                attackManager_->ReloadCommands();
+
+                // コマンドIDでデータを取得
+                auto it = attackManager_->ultimateCommandDataMap_.find(commandId);
+                /*if (it != attackManager_->ultimateCommandDataMap_.end()) {
+                    const auto& data = it->second;
+                    printfDx("登録: %s, ID: %s, ダメージ: %d, 速度: %.1f\n",
+                        commandStr.c_str(), commandId.c_str(), data.damage, data.speed);
+                }
+                else {
+                    printfDx("登録: %s, ID: %s\n", commandStr.c_str(), commandId.c_str());
+                }*/
+            }
+            inputBuf_[0] = '\0';
         }
         // Escでキャンセル
         if (CheckHitKey(KEY_INPUT_ESCAPE)) {
-            DeleteKeyInput(entryKeyInputHandle_);
+            DeleteKeyInput(keyInputHandle_);
             SetActiveKeyInput(-1);
-            entryKeyInputHandle_ = -1;
-            entryInputBuf_[0] = '\0';
-            isEntryMode_ = false;
-            lastRegisteredCommand_ = "必殺技登録キャンセル";
-            return;
+            isRegisteringUltimate_ = false;
+            inputBuf_[0] = '\0';
         }
-        return; // 通常処理はスキップ
+        return;
     }
-
-    // 常時コマンド入力バーで操作（Init で MakeKeyInput されている前提）
-    if (keyInputHandle_ == -1) {
-        keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
-        SetActiveKeyInput(keyInputHandle_);
-        inputBuf_[0] = '\0';
-    }
-
-    // 入力を取得して Enter で確定（確定後も入力バーは維持）
-    GetKeyInputString(inputBuf_, keyInputHandle_);
-    if (CheckKeyInput(keyInputHandle_) == 1) {
-        std::string raw(inputBuf_);
-        ProcessFloorCommand(raw);
-
-        // 入力ハンドルをリセットしてバッファクリア（内部状態を確実に空にするため）
-        DeleteKeyInput(keyInputHandle_);
-        SetActiveKeyInput(-1);
-        keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
-        SetActiveKeyInput(keyInputHandle_);
-        inputBuf_[0] = '\0';
-        romanjiConverter_.clear();
-    }
-    // Esc で入力をキャンセル（バッファクリア）
-    if (CheckHitKey(KEY_INPUT_ESCAPE)) {
-        DeleteKeyInput(keyInputHandle_);
-        SetActiveKeyInput(-1);
-        keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
-        SetActiveKeyInput(keyInputHandle_);
-        inputBuf_[0] = '\0';
-        romanjiConverter_.clear();
-        lastRegisteredCommand_ = "入力キャンセル";
-    }
-
-    // 必殺技一覧スクロール（既存）
-    if (attackManager_) {
+    //    // ポーズ切り替え
+    //    if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_TAB)) {
+    //        if (pauseState_ == PauseMenuState::None) {
+    //            pauseState_ = PauseMenuState::Pause;
+    //            pauseCursor_ = 0;
+    //            isPause_ = true;
+    //        }
+    //        else {
+    //            pauseState_ = PauseMenuState::None;
+    //            isPause_ = false;
+    //        }
+    //    }
+    //    // ポーズ中の操作
+    //    if (isPause_) {
+    //        if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_UP)) {
+    //            pauseCursor_ = (pauseCursor_ + 2) % 3;
+    //        }
+    //        if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_DOWN)) {
+    //            pauseCursor_ = (pauseCursor_ + 1) % 3;
+    //        }
+    //        if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_RETURN)) {
+    //            if (pauseCursor_ == 1) {
+    //                // タイトルに戻る（タイトルなので何もしない or シーンリセット）
+    //            }
+    //            else if (pauseCursor_ == 2) {
+    //                DxLib_End();
+    //                exit(0);
+    //            }
+    //        }
+    //        UIManager::GetInstance().SetPauseCursor(pauseCursor_);
+    //        UIManager::GetInstance().Update(UIManager::UIState::Pause);
+    //        return;
+    //    }
+    //}
+    // 必殺技一覧スクロール
+    if (!isRegisteringUltimate_ && attackManager_) {
         int listSize = static_cast<int>(attackManager_->registeredCommands_.size());
         if (CheckHitKey(KEY_INPUT_UP)) {
             if (scrollOffset_ > 0) scrollOffset_--;
@@ -254,7 +124,7 @@ void TitleScene::Update(void)
         }
     }
 
-    // 従来のスペースでゲーム開始は残す（必要なければ削除可）
+    // スペースで次のシーンへ
     if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_SPACE))
     {
         SceneManager::GetInstance()->ChangeScene(
@@ -266,26 +136,22 @@ void TitleScene::Draw(void)
 {
     SetBackgroundColor(0, 0, 0);
 
-    //DrawGraph(0, 0, handle_, true);
 
-    // 常時表示するコマンド入力バー
-    DrawString(50, 880, "コマンド入力バー: コマンドをタイプしてEnterで決定（Escでキャンセル）", GetColor(255, 255, 255));
-    DrawKeyInputString(50, 730, keyInputHandle_);
-
-    // ローマ字→ひらがな表示（Player と同様に毎フレーム構築）
-    romanjiConverter_.clear();
-    for (int i = 0; inputBuf_[i] != '\0'; ++i) {
-        romanjiConverter_.addInput(inputBuf_[i]);
+    DrawGraph(0, 0, handle_, true);
+    if (isRegisteringUltimate_) {
+        DrawString(50, 900, "必殺技コマンドを入力してEnterで登録（Escでキャンセル）", GetColor(255, 255, 255));
+        DrawKeyInputString(50, 730, keyInputHandle_);
+        // 入力中のコマンドを表示
+        DrawFormatString(50, 950, GetColor(0, 255, 0), "現在入力中: %s", inputBuf_);
     }
-    std::string hiraText = romanjiConverter_.getOutput();
-    DrawFormatString(50, 950, GetColor(0, 255, 0), "入力(原文): %s", inputBuf_);
-    DrawFormatString(50, 980, GetColor(0, 200, 200), "ひらがな表示: %s", hiraText.c_str());
-
-    // 状態表示
-    if (!lastRegisteredCommand_.empty()) {
-        DrawFormatString(50, 920, GetColor(255, 255, 0), "状態: %s", lastRegisteredCommand_.c_str());
+    else {
+        DrawString(50, 980, "F1で必殺技登録モード\n\nSPACEでゲーム開始", GetColor(255, 255, 255));
+        // 登録済みコマンド名を表示
+        if (!lastRegisteredCommand_.empty()) {
+            DrawFormatString(50, 950, GetColor(255, 255, 0), "登録したコマンド: %s", lastRegisteredCommand_.c_str());
+        }
     }
-
+    DrawGraph(0, 0, handle_, true);
     DrawString(50, 800, "このバトルタイピングは、コマンドをtypingして、回避や移動、攻撃、必殺、などを繰り出しボスを倒すのが目的です\nコマンドは、みぎ、ひだり、うえ、した、みぎにいどう、などいろいろあります\nコマンドはゲームシーンでTAB押下で確認することができます\n攻撃コマンドもこうげき、はっしゃなど複数コマンドがあります\n必殺技は各々が命名して生成することができます(6文字以上)。技によってステータスが変わります。強い必殺技やかっこいい必殺技を生成しましょう", GetColor(255, 255, 255));
 
     if (attackManager_) {
@@ -305,13 +171,14 @@ void TitleScene::Draw(void)
             if (it != attackManager_->ultimateCommandDataMap_.end()) {
                 damage = it->second.damage;
             }
-            DrawString(1500, 80, "必殺技一覧", GetColor(255, 255, 0));
+			DrawString(1500,80,"必殺技一覧", GetColor(255, 255, 0));
             DrawFormatString(x, y + i * lineHeight, GetColor(255, 255, 0),
                 "%2d: %s [DMG:%d]", idx + 1, pair.first.c_str(), damage);
         }
         if (listSize > maxDisplay) {
             DrawString(x, y + maxDisplay * lineHeight, "↑↓でスクロール", GetColor(200, 200, 200));
         }
+
     }
 
     if (isPause_) {
@@ -320,7 +187,8 @@ void TitleScene::Draw(void)
     }
 }
 
+
 void TitleScene::Release(void)
 {
-    DeleteGraph(handle_);
+	DeleteGraph(handle_);
 }
