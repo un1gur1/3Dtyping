@@ -1,6 +1,10 @@
+C++ Src\Scene\TitleScene\TitleScene.h
 #pragma once
 #include "../SceneBase.h"	
 #include <string>
+#include <vector>
+#include <unordered_map>
+
 class AttackManager;
 class TitleScene : public SceneBase
 {
@@ -29,4 +33,18 @@ public:
 private:
 	AttackManager* attackManager_;
 	int handle_;
+
+	// 常時表示する入力窓
+	int keyInputHandleCmd_ = -1;    // 入力窓用ハンドル
+	char cmdInputBuf_[128] = { 0 }; // 入力窓バッファ
+
+	// CSV から参照するコマンド辞書 (name -> type)
+	std::unordered_map<std::string, std::string> commandMap_;
+	std::vector<std::string> commandNames_; // 表示用順序保持
+
+	// CSV 読み込み
+	void LoadCommandsFromCSV(const std::string& path);
+
+	// 入力文字列を処理
+	void ProcessTitleCommand(const std::string& rawInput);
 };
