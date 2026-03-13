@@ -3,15 +3,73 @@
 #include "../Attack/Magic/ThunderAttack.h"
 #include "../../Application.h"
 #include "AttackBase.h"
+#include "../../Common/RomanjiConverter.h" // 追加: コンバーターのインクルード
+
 #include <fstream>
 #include <sstream>
 #include <random>
 #include <functional> 
+#include <cctype>    // 追加: tolower用
+#include <algorithm> // 追加: find_if用
+
+// =======================================================
+// TitleScene / Player と同じ正規化ヘルパーを追加
+// =======================================================
+namespace {
+    static bool IsLikelyRomanji(const std::string& s) {
+        if (s.empty()) return false;
+        bool hasAlpha = false;
+        for (unsigned char c : s) {
+            if (c >= 128) return false;
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                hasAlpha = true;
+            }
+        }
+        return hasAlpha;
+    }
+
+    static std::string ConvertRomanjiToHiragana(const std::string& in) {
+        RomanjiConverter conv;
+        std::string filtered;
+        for (unsigned char c : in) {
+            if (c != ' ') {
+                filtered += static_cast<char>(std::tolower(c));
+            }
+        }
+        return conv.convert(filtered);
+    }
+
+    static std::string ConvertIfRomanji(const std::string& s) {
+        if (IsLikelyRomanji(s)) {
+            std::string hira = ConvertRomanjiToHiragana(s);
+            if (!hira.empty()) return hira;
+        }
+        return s;
+    }
+
+    static bool IsSpaceSafe(unsigned char ch) {
+        return (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n');
+    }
+
+    static std::string ToLowerTrim(const std::string& s) {
+        std::string t = s;
+        t.erase(t.begin(), std::find_if(t.begin(), t.end(), [](unsigned char ch) {
+            return !IsSpaceSafe(ch);
+            }));
+        t.erase(std::find_if(t.rbegin(), t.rend(), [](unsigned char ch) {
+            return !IsSpaceSafe(ch);
+            }).base(), t.end());
+        for (char& c : t) {
+            unsigned char uc = static_cast<unsigned char>(c);
+            if (uc < 128) c = static_cast<char>(std::tolower(uc));
+        }
+        return t;
+    }
+}
+// =======================================================
 
 AttackManager::AttackManager() {
     ReloadCommands();
-
-
 }
 
 AttackManager::~AttackManager() {
@@ -33,7 +91,6 @@ void AttackManager::UpdateAll(const std::vector<ActorBase*>& targets) {
 
             // ブロードフェーズ: グリッド判定
             if (attack->collisionType_ == AttackBase::CollisionType::Grid || attack->collisionType_ == AttackBase::CollisionType::Both) {
-                // 例: グリッド座標が一致していれば詳細判定へ
                 if (attack->GetTargetGridIdx() == target->gridPos_.x && attack->GetTargetGridIdx() == target->gridPos_.z) {
                     // ローフェーズ: 球体判定
                     if (attack->collisionType_ == AttackBase::CollisionType::Both || attack->collisionType_ == AttackBase::CollisionType::Sphere) {
@@ -48,8 +105,6 @@ void AttackManager::UpdateAll(const std::vector<ActorBase*>& targets) {
                             target->ApplyDamage(attack->GetDamage());
                             attack->Kill();
                             Application::GetInstance()->ShakeScreen(5, 30, true, true);
-
-
                             break;
                         }
                     }
@@ -58,8 +113,6 @@ void AttackManager::UpdateAll(const std::vector<ActorBase*>& targets) {
                         target->ApplyDamage(attack->GetDamage());
                         attack->Kill();
                         Application::GetInstance()->ShakeScreen(5, 30, true, true);
-
-
                         break;
                     }
                 }
@@ -77,17 +130,12 @@ void AttackManager::UpdateAll(const std::vector<ActorBase*>& targets) {
                     target->ApplyDamage(attack->GetDamage());
                     attack->Kill();
                     Application::GetInstance()->ShakeScreen(5, 30, true, true);
-
-
                     break;
                 }
             }
         }
     }
 }
-
-
-
 
 void AttackManager::DrawAll() {
     for (auto* attack : attacks_) {
@@ -103,9 +151,6 @@ void AttackManager::Clear() {
     }
     attacks_.clear();
 }
-
-
-
 
 std::string AttackManager::RegisterUltimateCommand(const std::string& commandString, int minLength) {
     if (commandString.length() < minLength) return "";
@@ -138,10 +183,9 @@ std::string AttackManager::RegisterUltimateCommand(const std::string& commandStr
     return commandId;
 }
 
-
 void AttackManager::LoadCommandsFromCSV(const std::string& path) {
     ultimateCommandDataMap_.clear();
-    registeredCommands_.clear(); // 追加: 既存の登録もクリア
+    registeredCommands_.clear(); // 既存の登録もクリア
     std::ifstream file(path);
     std::string line;
     int maxId = 0;
@@ -168,8 +212,14 @@ void AttackManager::LoadCommandsFromCSV(const std::string& path) {
         data.speed = std::stof(speedStr);
         ultimateCommandDataMap_[commandId] = data;
 
-        // 追加: コマンドも登録
-        registeredCommands_.emplace_back(command, commandId);
+        // ==========================================
+        // ★ ここが要！ 読み込んだ必殺技名もひらがなに正規化！
+        // ==========================================
+        std::string normalizedCommand = ConvertIfRomanji(ToLowerTrim(command));
+
+        if (!normalizedCommand.empty()) {
+            registeredCommands_.emplace_back(normalizedCommand, commandId);
+        }
 
         // 連番最大値の更新
         size_t pos = commandId.rfind('_');
@@ -180,8 +230,6 @@ void AttackManager::LoadCommandsFromCSV(const std::string& path) {
     }
     commandIdCounter_ = maxId;
 }
-
-
 
 void AttackManager::ReloadCommands() {
     LoadCommandsFromCSV("Data/CSV/Ultimate.csv");

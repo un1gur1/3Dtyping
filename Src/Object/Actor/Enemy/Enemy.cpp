@@ -11,6 +11,25 @@
 #include "../../Attack/UltimateAttack/UltimateAttack.h"
 #include "../Player/Player.h"
 #include "../../Attack/Magic/ThunderAttack.h"
+
+// =======================================================
+// エネミー専用のヘルパー関数（文字数カウント用）
+// =======================================================
+namespace {
+	// UTF-8の文字列から「実際の文字数」をカウントする
+	// （ひらがな1文字が3バイトになる問題を解決するため）
+	static size_t GetUtf8CharCount(const std::string& s) {
+		size_t count = 0;
+		for (unsigned char c : s) {
+			// UTF-8の先頭バイト（10xxxxxx 以外）のときだけカウント
+			if ((c & 0xC0) != 0x80) {
+				count++;
+			}
+		}
+		return count;
+	}
+}
+
 Enemy::Enemy(Player* player)
 {
 	player_ = player;
@@ -56,7 +75,7 @@ void Enemy::Update(void)
 				ChangeState(ActorState::ATTACK_RANGE);
 			}
 			else {
-				
+
 			}
 		}
 		break;
@@ -130,7 +149,7 @@ void Enemy::Update(void)
 				int gridIdx = AttackBase::CalcGridIndex(thunderPos, false);
 
 				auto thunder = new ThunderAttack(
-					gridIdx,   
+					gridIdx,
 					false,
 					velocity,
 					1.0f,
@@ -214,7 +233,7 @@ void Enemy::Update(void)
 	//	}
 	//}
 	// 
-    // モデルの位置を反映
+	// モデルの位置を反映
 	MV1SetPosition(modelId_, pos_);
 	// 歩くアニメーション再生
 // 攻撃状態の管理（例: isAttacking_ フラグを用意）
@@ -348,86 +367,7 @@ void Enemy::InitPost(void)
 }
 
 //void Enemy::DrawViewRange(void)
-//{
-//	float viewRad = AsoUtility::Deg2RadF(VIEW_ANGLE);
-//
-//	// 向き角度から方向を取得する
-//	MATRIX mat = MGetIdent();
-//	mat = MatrixUtility::GetMatrixRotateXYZ(angle_);
-//
-//	// 前方方向
-//	VECTOR forward = VTransform(AsoUtility::DIR_F, mat);
-//
-//	// 右側方向
-//	MATRIX rightMat = MMult(mat, MGetRotY(AsoUtility::Deg2RadF(VIEW_ANGLE)));
-//	VECTOR right = VTransform(AsoUtility::DIR_F, rightMat);
-//
-//	// 左側方向
-//	MATRIX leftMat = MMult(mat, MGetRotY(AsoUtility::Deg2RadF(-VIEW_ANGLE)));
-//	VECTOR left = VTransform(AsoUtility::DIR_F, leftMat);
-//
-//	// 自分の位置
-//	VECTOR pos0 = pos_;
-//
-//	// 正面の位置
-//	VECTOR pos1 = VAdd(pos0, VScale(forward, VIEW_RANGE));
-//
-//	// 正面から反時計回り
-//	VECTOR pos2 = VAdd(pos0, VScale(left, VIEW_RANGE));
-//
-//	// 正面から時計回り
-//	VECTOR pos3 = VAdd(pos0, VScale(right, VIEW_RANGE));
-//
-//	// 視野
-//	pos0.y = pos1.y = pos2.y = pos3.y = 10.0f;
-//	DrawTriangle3D(pos0, pos2, pos1, 0xdd77dd, true);
-//	DrawTriangle3D(pos0, pos1, pos3, 0xdd77dd, true);
-//	DrawLine3D(pos0, pos1, 0x000000);
-//	DrawLine3D(pos0, pos2, 0x000000);
-//	DrawLine3D(pos0, pos3, 0x000000);
-//
-//	// 聴覚
-//	DrawCone3D(
-//		VAdd(pos_, { 0.0f, 0.0f, 0.0f }),
-//		VAdd(pos_, { 0.0f, 1.0f, 0.0f }),
-//		HEARING_RANGE, 10, 0xffff7f, 0xffff7f, true);
-//}
-//void Enemy::Search(void)
-//{
-//	// 検知フラグリセット
-//	isNoticeView_ = false;
-//	isNoticeHearing_ = false;
-//
-//	// プレイヤーの座標を取得
-//	VECTOR pPos = player_->GetPos();
-//
-//	// エネミーからプレイヤーまでのベクトル
-//	VECTOR diff = VSub(pPos, pos_);
-//
-//	// 視野範囲に入っているか判断(ピタゴラスの定理)
-//	float distance = std::pow(diff.x, 2.0f) + std::pow(diff.z, 2.0f);
-//	if (distance <= (std::pow(VIEW_RANGE, 2.0f)))
-//	{
-//		// エネミーから見たプレイヤーの角度を求める
-//		float dot = VDot(VNorm(moveDir_), VNorm(diff));
-//		float angle = acosf(dot);
-//
-//		// 視野角をラジアンに変換
-//		const float viewRad = AsoUtility::Deg2RadF(VIEW_ANGLE);
-//
-//		// 視野各内に入っているか判断
-//		if (angle <= viewRad)
-//		{
-//			isNoticeView_ = true;
-//		}
-//	}
-//
-//	// 聴覚
-//	if (distance <= (std::pow(HEARING_RANGE, 2.0f)))
-//	{
-//		isNoticeHearing_ = true;
-//	}
-//}
+// (省略: コメントアウトそのまま)
 
 void Enemy::ApplyDamage(int damage) {
 	hp_ -= damage;
@@ -482,8 +422,12 @@ ActorBase::ActorState Enemy::GetState() const
 void Enemy::StartTypingUltimate(const std::string& command) {
 	typingCommand_ = command;
 	typingElapsed_ = 0.0f;
-	// 1文字0.2秒 × 文字数
-	typingWait_ = static_cast<float>(command.size()) * 0.2f;
+
+	// ★ ここが修正のキモ！ バイト数ではなく実際の文字数を数える
+	size_t charCount = GetUtf8CharCount(command);
+
+	// 1文字0.2秒 × 実際の文字数
+	typingWait_ = static_cast<float>(charCount) * 0.2f;
 }
 
 void Enemy::UpdateTypingUltimate(float deltaTime) {

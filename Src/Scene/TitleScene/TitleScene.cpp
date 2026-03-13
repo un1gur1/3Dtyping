@@ -17,7 +17,7 @@
 
 namespace {
 	// =======================================================
-	// 描画用：ローマ字→ひらがな変換処理（内部ロジックでは使わない）
+	// ローマ字→ひらがな変換処理（揺れ吸収・正規化の要）
 	// =======================================================
 	static bool IsLikelyRomanji(const std::string& s) {
 		if (s.empty()) return false;
@@ -31,7 +31,7 @@ namespace {
 				hasAlpha = true;
 			}
 		}
-		// 半角英字が1つでも含まれており、かつ全角文字が無いならローマ字とみなして変換する
+		// 半角英字が1つでも含まれており、かつ全角文字が無いならローマ字とみなす
 		return hasAlpha;
 	}
 
@@ -39,14 +39,14 @@ namespace {
 		RomanjiConverter conv;
 		std::string filtered;
 
-		// 元の「空白は無視して連結する」仕様を維持しつつ、小文字化してまとめる
+		// 空白は無視して連結しつつ、小文字化してまとめる
 		for (unsigned char c : in) {
 			if (c != ' ') {
 				filtered += static_cast<char>(std::tolower(c));
 			}
 		}
 
-		// ★1文字ずつ addInput ではなく、修正した convert() に全て任せる！
+		// 変換処理にすべて任せる
 		return conv.convert(filtered);
 	}
 
@@ -59,26 +59,21 @@ namespace {
 	}
 
 	// =======================================================
-	// 例外クラッシュ対策：安全な文字列操作（全角文字を無視する）
+	// 例外クラッシュ対策：安全な文字列操作
 	// =======================================================
 
-	// 標準の isspace の代わりに ASCII空白 のみ判定する
 	static bool IsSpaceSafe(unsigned char ch) {
 		return (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n');
 	}
 
-	// 全角文字に触れずにトリム＆小文字化を行う安全な関数
 	static std::string ToLowerTrim(const std::string& s) {
 		std::string t = s;
-		// 先頭トリム
 		t.erase(t.begin(), std::find_if(t.begin(), t.end(), [](unsigned char ch) {
 			return !IsSpaceSafe(ch);
 			}));
-		// 末尾トリム
 		t.erase(std::find_if(t.rbegin(), t.rend(), [](unsigned char ch) {
 			return !IsSpaceSafe(ch);
 			}).base(), t.end());
-		// ASCII（半角英数字）のみ小文字化
 		for (char& c : t) {
 			unsigned char uc = static_cast<unsigned char>(c);
 			if (uc < 128) c = static_cast<char>(std::tolower(uc));
@@ -116,8 +111,8 @@ TitleScene::~TitleScene(void)
 		keyInputHandleCmd_ = -1;
 	}
 	delete attackManager_;
+	attackManager_ = nullptr; // 追加: 解放後の二次参照を防ぐ
 }
-
 void TitleScene::Init(void)
 {
 	keyInputHandleCmd_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
@@ -162,7 +157,7 @@ void TitleScene::LoadCommandsFromCSV(const std::string& path)
 		std::istringstream iss(line);
 		std::string name, type;
 		if (std::getline(iss, name, ',') && std::getline(iss, type, ',')) {
-			// 安全なトリムを使用
+
 			auto safe_trim = [](std::string& s) {
 				s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !IsSpaceSafe(ch); }));
 				s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), s.end());
@@ -172,31 +167,33 @@ void TitleScene::LoadCommandsFromCSV(const std::string& path)
 
 			if (name.empty()) continue;
 
-			commandMap_[name] = type;
-			commandNames_.push_back(name);
+			// ★ ここが要！CSVのコマンド名を「ひらがな」にして辞書に登録する
+			std::string lowerName = ToLowerTrim(name);
+			std::string hiraName = ConvertIfRomanji(lowerName);
 
-			// 追加で小文字キーも登録（全角クラッシュ回避版を使用）
-			std::string lower = ToLowerTrim(name);
-			if (!lower.empty() && lower != name) {
-				commandMap_[lower] = type;
+			if (!hiraName.empty()) {
+				commandMap_[hiraName] = type;
+				commandNames_.push_back(name); // 表示用には元の文字列を保持しておく
 			}
 		}
 	}
-	lastRegisteredCommand_ = "コマンドCSV読み込み完了";
+	lastRegisteredCommand_ = "コマンドCSV読み込み完了 (ひらがな正規化済)";
 }
 
 void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 {
-	// 安全なトリム＆小文字化関数で処理（日本語が入ってきてもクラッシュしない）
+	// 1. 入力を安全にトリム＆小文字化
 	std::string inputTrim = ToLowerTrim(rawInput);
-
 	if (inputTrim.empty()) {
 		lastRegisteredCommand_ = "入力が空です";
 		return;
 	}
 
-	// 直接 commandMap_ を検索
-	auto it = commandMap_.find(inputTrim);
+	// 2. ★入力をひらがなに変換（これが判定の共通言語になる）
+	std::string inputHira = ConvertIfRomanji(inputTrim);
+
+	// 3. ひらがな同士で辞書検索
+	auto it = commandMap_.find(inputHira);
 
 	// 見つからなければリセット
 	if (it == commandMap_.end()) {
@@ -214,8 +211,6 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 
 	// 見つかった場合、CSV の type に従って処理する
 	std::string rawType = it->second;
-
-	// type を安全にトリムして先頭 ':' 前までを使う
 	rawType.erase(rawType.begin(), std::find_if(rawType.begin(), rawType.end(), [](unsigned char ch) { return !IsSpaceSafe(ch); }));
 	rawType.erase(std::find_if(rawType.rbegin(), rawType.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), rawType.end());
 
@@ -223,7 +218,6 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 	std::string type = (colon != std::string::npos) ? rawType.substr(0, colon) : rawType;
 	std::string typeLower = ToLowerTrim(type);
 
-	// 判定集合（1単語ID）
 	static const std::vector<std::string> REGISTER_KEYS = { "register", "ultimate" };
 	static const std::vector<std::string> START_KEYS = { "start", "play", "game" };
 	static const std::vector<std::string> LIST_KEYS = { "list", "commands", "help" };
@@ -234,7 +228,6 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 		return false;
 		};
 
-	// 必殺技登録
 	if (isOneOf(typeLower, REGISTER_KEYS)) {
 		if (keyInputHandleCmd_ != -1) {
 			DeleteKeyInput(keyInputHandleCmd_);
@@ -242,7 +235,6 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 			cmdInputBuf_[0] = '\0';
 			cmdHiraStr_.clear();
 		}
-
 		isRegisteringUltimate_ = true;
 		keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
 		SetActiveKeyInput(keyInputHandle_);
@@ -252,14 +244,12 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 		return;
 	}
 
-	// ゲーム開始
 	if (isOneOf(typeLower, START_KEYS)) {
 		lastRegisteredCommand_ = std::string("ゲーム開始コマンド: ") + rawInput;
 		SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
 		return;
 	}
 
-	// コマンド一覧表示
 	if (isOneOf(typeLower, LIST_KEYS)) {
 		combinedCommandList_.clear();
 		for (const auto& n : commandNames_) {
@@ -283,7 +273,6 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 		return;
 	}
 
-	// 終了
 	if (isOneOf(typeLower, EXIT_KEYS)) {
 		lastRegisteredCommand_ = "終了コマンドによる終了";
 		DxLib_End();
@@ -296,6 +285,7 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 
 void TitleScene::Update(void)
 {
+	// 登録メッセージの表示時間管理
 	if (registeredDisplayRemaining_ > 0) {
 		--registeredDisplayRemaining_;
 		if (registeredDisplayRemaining_ == 0) {
@@ -340,7 +330,6 @@ void TitleScene::Update(void)
 			prevReturnDown_ = curReturnDown;
 			return;
 		}
-
 		prevReturnDown_ = curReturnDown;
 		return;
 	}
@@ -362,7 +351,6 @@ void TitleScene::Update(void)
 	}
 	else {
 		GetKeyInputString(inputBuf_, keyInputHandle_);
-		// 生の入力を保持する
 		inputHiraStr_ = std::string(inputBuf_);
 
 		if (CheckKeyInput(keyInputHandle_) == 1) {
@@ -375,7 +363,9 @@ void TitleScene::Update(void)
 			isRegisteringUltimate_ = false;
 
 			if (attackManager_ && inputHiraStr_.size() != 0) {
-				std::string commandStr = inputHiraStr_;
+				// 登録する必殺技名もひらがなに正規化してからAttackManagerに渡す
+				std::string commandStr = ConvertIfRomanji(inputHiraStr_);
+
 				std::string commandId = attackManager_->RegisterUltimateCommand(commandStr, 5);
 				attackManager_->ReloadCommands();
 
@@ -431,9 +421,10 @@ void TitleScene::Update(void)
 		cmdHiraStr_ = std::string(cmdInputBuf_);
 
 		if (CheckKeyInput(keyInputHandleCmd_) == 1) {
+			// 1. 入力された文字列を退避
 			std::string raw(cmdInputBuf_);
-			ProcessTitleCommand(raw);
 
+			// 2. ★自分が生きているうちに後片付けを終わらせる（例外対策）
 			if (!isRegisteringUltimate_) {
 				cmdInputBuf_[0] = '\0';
 				cmdHiraStr_.clear();
@@ -443,9 +434,16 @@ void TitleScene::Update(void)
 				cmdInputBuf_[0] = '\0';
 				cmdHiraStr_.clear();
 			}
+
+			// 3. コマンド処理を実行（ここでシーンが切り替わり、自分が消滅する可能性がある）
+			ProcessTitleCommand(raw);
+
+			// 4. ★自分が消滅したかもしれないので、これ以上はメンバ変数に触らずに即リターン！
+			return;
 		}
 	}
 
+	// 必殺技リストのスクロール操作
 	if (!isRegisteringUltimate_ && attackManager_) {
 		int listSize = static_cast<int>(attackManager_->registeredCommands_.size());
 		if (CheckHitKey(KEY_INPUT_UP)) {
@@ -456,15 +454,18 @@ void TitleScene::Update(void)
 		}
 	}
 
+	// スペースキーによるゲーム開始
 	if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_SPACE))
 	{
-		SceneManager::GetInstance()->ChangeScene(
-			SceneManager::SCENE_ID::GAME);
+		SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
+
+		// ★ここも例外対策！シーン遷移したら即リターンする
+		return;
 	}
 
+	// シーンが切り替わらなかった場合のみ、ここに到達して変数を更新する
 	prevReturnDown_ = curReturnDown;
 }
-
 void TitleScene::Draw(void)
 {
 	SetBackgroundColor(0, 0, 0);
@@ -479,17 +480,13 @@ void TitleScene::Draw(void)
 	int inputX = (candidateX > 0) ? candidateX : 0;
 	int inputY = screenH / 2 - inputBoxH / 2;
 
-	// DrawGraph(0, 0, handle_, true);
-
 	DrawString(inputX, inputY - 56, "入力窓: 文言を入力してEnter（CSV参照）", GetColor(255, 255, 255));
 
 	if (keyInputHandleCmd_ != -1) {
 		DrawKeyInputString(inputX, inputY, keyInputHandleCmd_);
-		// ★描画時だけローマ字をひらがなに変換して表示する
 		std::string displayStr = ConvertIfRomanji(std::string(cmdInputBuf_));
 		DrawFormatString(inputX, inputY + 40, GetColor(0, 255, 0), "入力: %s", displayStr.c_str());
 
-		// cmdHiraStr_ も描画時変換
 		if (!cmdHiraStr_.empty()) {
 			std::string displayHira = ConvertIfRomanji(cmdHiraStr_);
 			DrawFormatString(inputX, inputY + 64, GetColor(0, 200, 255), "ひらがな: %s", displayHira.c_str());
@@ -502,7 +499,6 @@ void TitleScene::Draw(void)
 			DrawKeyInputString(inputX, inputY, keyInputHandle_);
 		}
 
-		// 登録用入力も描画時のみ変換
 		std::string displayRegStr = ConvertIfRomanji(std::string(inputBuf_));
 		DrawFormatString(inputX, inputY + 40, GetColor(0, 255, 0), "登録用入力: %s", displayRegStr.c_str());
 
@@ -512,10 +508,9 @@ void TitleScene::Draw(void)
 		}
 	}
 	else {
-		DrawString(inputX, inputY + 80, "F1で必殺技登録モード  SPACEでゲーム開始", GetColor(255, 255, 255));
+		DrawString(inputX, inputY + 80, "F1で必殺技登録モード  SPACEでゲーム開始", GetColor(255, 255, 255));
 		const std::string& statusMsg = (!registeredDisplayMessage_.empty()) ? registeredDisplayMessage_ : lastRegisteredCommand_;
 		if (!statusMsg.empty()) {
-			// 状態表示も描画時のみ変換
 			DrawFormatString(inputX, inputY + 112, GetColor(255, 255, 0), "状態: %s", ConvertIfRomanji(statusMsg).c_str());
 		}
 	}
@@ -537,7 +532,6 @@ void TitleScene::Draw(void)
 		for (int i = 0; i < maxDisplay; ++i) {
 			int idx = startIdx + i;
 			if (idx >= (int)combinedCommandList_.size()) break;
-			// 一覧画面も描画時のみ変換
 			DrawFormatString(x0 + 16, y0 + 40 + i * lineH, GetColor(200, 200, 200), "%3d: %s", idx + 1, ConvertIfRomanji(combinedCommandList_[idx]).c_str());
 		}
 		if ((int)combinedCommandList_.size() > maxDisplay) {
@@ -566,7 +560,6 @@ void TitleScene::Draw(void)
 			if (it != attackManager_->ultimateCommandDataMap_.end()) {
 				damage = it->second.damage;
 			}
-			// 必殺技名も描画時のみ変換
 			DrawFormatString(x, y + i * lineHeight, GetColor(255, 255, 0),
 				"%2d: %s [DMG:%d]", idx + 1, ConvertIfRomanji(pair.first).c_str(), damage);
 		}
@@ -583,7 +576,10 @@ void TitleScene::Draw(void)
 
 void TitleScene::Release(void)
 {
-	DeleteGraph(handle_);
+	if (handle_ != -1) {
+		DeleteGraph(handle_);
+		handle_ = -1; // 追加: 二重解放防止
+	}
 	if (keyInputHandle_ != -1) {
 		DeleteKeyInput(keyInputHandle_);
 		keyInputHandle_ = -1;
