@@ -8,6 +8,7 @@ SceneBase::~SceneBase(void)
 {
 }
 
+
 void SceneBase::Init(void)
 {
 }

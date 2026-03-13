@@ -1,4 +1,3 @@
-C++ Src\Scene\TitleScene\TitleScene.h
 #pragma once
 #include "../SceneBase.h"	
 #include <string>
@@ -9,7 +8,7 @@ class AttackManager;
 class TitleScene : public SceneBase
 {
 public:
-	
+
 	TitleScene(void);				// コンストラクタ
 	~TitleScene(void) override;		// デストラクタ
 
@@ -41,6 +40,11 @@ private:
 	// CSV から参照するコマンド辞書 (name -> type)
 	std::unordered_map<std::string, std::string> commandMap_;
 	std::vector<std::string> commandNames_; // 表示用順序保持
+
+	// 登録表示用（登録成功時に数秒表示）
+	int registeredDisplayRemaining_ = 0;
+	static constexpr int kRegisteredDisplayFrames = 60; // 約3秒（60fps 想定）
+	std::string registeredDisplayMessage_;
 
 	// CSV 読み込み
 	void LoadCommandsFromCSV(const std::string& path);
