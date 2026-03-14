@@ -3,7 +3,63 @@
 #include <DxLib.h>
 #include "../Input/InputManager.h"
 #include <algorithm>
+#include <cctype>
+#include "RomanjiConverter.h"
+
 // コンストラクタ
+
+// 正規化ヘルパー（TitleScene と同等の挙動に合わせる）
+namespace {
+    static bool IsSpaceSafe(unsigned char ch) {
+        return (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n');
+    }
+
+    static std::string ToLowerTrim(const std::string& s) {
+        std::string t = s;
+        t.erase(t.begin(), std::find_if(t.begin(), t.end(), [](unsigned char ch) {
+            return !IsSpaceSafe(ch);
+            }));
+        t.erase(std::find_if(t.rbegin(), t.rend(), [](unsigned char ch) {
+            return !IsSpaceSafe(ch);
+            }).base(), t.end());
+        for (char& c : t) {
+            unsigned char uc = static_cast<unsigned char>(c);
+            if (uc < 128) c = static_cast<char>(std::tolower(uc));
+        }
+        return t;
+    }
+
+    static bool IsLikelyRomanji(const std::string& s) {
+        if (s.empty()) return false;
+        bool hasAlpha = false;
+        for (unsigned char c : s) {
+            if (c >= 128) return false;
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                hasAlpha = true;
+            }
+        }
+        return hasAlpha;
+    }
+
+    static std::string ConvertRomanjiToHiragana(const std::string& in) {
+        RomanjiConverter conv;
+        std::string filtered;
+        for (unsigned char c : in) {
+            if (c != ' ') {
+                filtered += static_cast<char>(std::tolower(c));
+            }
+        }
+        return conv.convert(filtered);
+    }
+
+    static std::string ConvertIfRomanji(const std::string& s) {
+        if (IsLikelyRomanji(s)) {
+            std::string hira = ConvertRomanjiToHiragana(s);
+            if (!hira.empty()) return hira;
+        }
+        return s;
+    }
+}
 
 void UIManager::InitGrids()
 {
@@ -89,21 +145,21 @@ void UIManager::Update(UIState currentState) {
 // 毎フレーム描画
 void UIManager::Draw(UIState currentState) {
 
-   for (auto& grid : grids)
+    for (auto& grid : grids)
     {
         grid.Draw();
     }
-  /*  if (!grids.empty()) {
-        grids[0].Draw();
-    }*/
-    // 状態に応じて描画
+    /*  if (!grids.empty()) {
+          grids[0].Draw();
+      }*/
+      // 状態に応じて描画
 
-   //    // デバッグ表示
-   //if (!grids.empty() && debugGridIndex_ < grids.size()) {
-   //    int x = static_cast<int>(grids[debugGridIndex_].pos_.x);
-   //    int y = static_cast<int>(grids[debugGridIndex_].pos_.y);
-   //    DrawFormatString(50, 50, 0xffffff, "Grid[%d] Pos: (%d, %d)", debugGridIndex_, x, y);
-   //}
+     //    // デバッグ表示
+     //if (!grids.empty() && debugGridIndex_ < grids.size()) {
+     //    int x = static_cast<int>(grids[debugGridIndex_].pos_.x);
+     //    int y = static_cast<int>(grids[debugGridIndex_].pos_.y);
+     //    DrawFormatString(50, 50, 0xffffff, "Grid[%d] Pos: (%d, %d)", debugGridIndex_, x, y);
+     //}
     DrawCommonHUD();
 
     switch (currentState) {
@@ -122,29 +178,21 @@ void UIManager::Draw(UIState currentState) {
         break;
     }
 
-   
+
 }
 
 // HPバーや共通HUD
 void UIManager::DrawCommonHUD() {
-    //std::string playerHpText = "Player HP: " + std::to_string(playerHp_) + "/" + std::to_string(playerMaxHp_);
-    //DrawString(INPUT_TEXT_X, INPUT_TEXT_Y, playerHpText.c_str(), COLOR_WHITE);
-
-    //std::string enemyHpText = "Enemy HP: " + std::to_string(enemyHp_) + "/" + std::to_string(enemyMaxHp_);
-    //DrawString(INPUT_TEXT_X, HIRA_TEXT_Y, enemyHpText.c_str(), COLOR_WHITE);
-
-    //std::string enemyNameText = "Enemy: " + enemyName_;
-    //DrawString(INPUT_TEXT_X, PREV_INPUT_Y, enemyNameText.c_str(), COLOR_WHITE);
-
-        // プレイヤーHPバー
+    // プレイヤーHPバー
     DrawHpBar(50, 30, 300, 20, playerHp_, playerMaxHp_, GetColor(0, 128, 255), "PLAYER HP");
 
     // 敵HPバー
     DrawHpBar(50, 70, 300, 20, enemyHp_, enemyMaxHp_, GetColor(255, 64, 64), "ENEMY HP");
 
-    //// 敵の名前
-    //std::string enemyNameText = "Enemy: " + enemyName_;
-    //DrawString(50, 100, enemyNameText.c_str(), COLOR_WHITE);
+    // 敵の名前（小さめに）
+    if (!enemyName_.empty()) {
+        DrawFormatString(370, 70, 0xFFFFFF, "Name: %s", enemyName_.c_str());
+    }
 }
 // UiManager.cpp
 
@@ -164,15 +212,42 @@ void UIManager::DrawTypingArea() {
     int oldFontSize = GetFontSize();
     SetFontSize(FONT_SIZE_LARGE);
 
-    // 入力中表示
+    // 背景ボックス（入力領域）
+    int bx = INPUT_TEXT_X - 8;
+    int by = INPUT_TEXT_Y - 8;
+    int bw = 900;
+    int bh = 140;
+    DrawBox(bx, by, bx + bw, by + bh, GetColor(16, 16, 16), TRUE);
+    DrawBox(bx + 2, by + 2, bx + bw - 2, by + bh - 2, GetColor(40, 40, 40), FALSE);
+
+    // 入力中表示（ローマ字）
     DrawFormatString(INPUT_TEXT_X, INPUT_TEXT_Y, COLOR_MAGENTA,
         "コマンド入力(ローマ字): %s", typingInput_.c_str());
-    DrawFormatString(INPUT_TEXT_X, HIRA_TEXT_Y, COLOR_GREEN,
-        "変換(ひらがな): %s", typingConverted_.c_str());
 
-    // 直前の入力表示
+    // ひらがな変換表示（UI側でも正規化して表示）
+    std::string displayConverted = typingConverted_;
+    if (displayConverted.empty()) {
+        // もし converted が空ならローカルで正規化して表示
+        displayConverted = ConvertIfRomanji(ToLowerTrim(typingInput_));
+    }
+    DrawFormatString(INPUT_TEXT_X, HIRA_TEXT_Y, COLOR_GREEN,
+        "変換(ひらがな): %s", displayConverted.c_str());
+
+    // 直前の入力表示（ローマ字 + 正規化）
+    std::string prevConverted = typingPrevConverted_;
+    if (prevConverted.empty()) {
+        prevConverted = ConvertIfRomanji(ToLowerTrim(typingPrevInput_));
+    }
     DrawFormatString(INPUT_TEXT_X, PREV_INPUT_Y, COLOR_GREEN,
-        "直前の入力: %s（%s）", typingPrevInput_.c_str(), typingPrevConverted_.c_str());
+        "直前の入力: %s（%s）", typingPrevInput_.c_str(), prevConverted.c_str());
+
+    // 目標ワードと現在入力の一致状況（左下に小さく）
+    if (!targetWord_.empty()) {
+        std::string tnorm = ConvertIfRomanji(ToLowerTrim(targetWord_));
+        std::string inorm = ConvertIfRomanji(ToLowerTrim(inputWord_));
+        DrawFormatString(INPUT_TEXT_X, HIRA_TEXT_Y + 32, 0xFFFFAA,
+            "目標: %s  入力(正規化): %s", tnorm.c_str(), inorm.c_str());
+    }
 
     SetFontSize(oldFontSize);
 }
@@ -206,8 +281,8 @@ void UIManager::DrawPauseMenu() {
 
     if (pauseCursor_ == 0) {
         int y = 180;
-        int colW = 180; // 列の幅
-        int maxPerCol = 13; // 1列に表示する最大数
+        int colW = 220; // 列の幅を調整
+        int maxPerCol = 12; // 1列に表示する最大数
         int xBase = 600;
 
         // --- 通常コマンド ---
@@ -218,7 +293,11 @@ void UIManager::DrawPauseMenu() {
             int row = i % maxPerCol;
             int drawX = xBase + col * colW;
             int drawY = y + row * 24;
-            DrawString(drawX, drawY, normalCommandList_[i].c_str(), GetColor(200, 200, 255));
+            // 表示はオリジナルと正規化（ひらがな）を併記
+            std::string orig = normalCommandList_[i];
+            std::string norm = ConvertIfRomanji(ToLowerTrim(orig));
+            DrawString(drawX, drawY, orig.c_str(), GetColor(200, 200, 255));
+            DrawFormatString(drawX + 130, drawY, GetColor(150, 255, 180), "(%s)", norm.c_str());
         }
         y += maxPerCol * 24 + 20;
 
@@ -230,14 +309,14 @@ void UIManager::DrawPauseMenu() {
             int row = i % maxPerCol;
             int drawX = xBase + col * colW;
             int drawY = y + row * 24;
-            DrawString(drawX, drawY, ultimateCommandList_[i].c_str(), GetColor(255, 200, 200));
+            std::string orig = ultimateCommandList_[i];
+            std::string norm = ConvertIfRomanji(ToLowerTrim(orig));
+            DrawString(drawX, drawY, orig.c_str(), GetColor(255, 200, 200));
+            DrawFormatString(drawX + 130, drawY, GetColor(255, 230, 160), "(%s)", norm.c_str());
         }
     }
     //DrawFormatString(700, 500, 0xFF0000, "normal:%d ultimate:%d", normalCommandList_.size(), ultimateCommandList_.size());
 }
-
-
-
 
 void UIManager::SetGridState(int index, Grid::GridState state, bool isPlayerSide) {
     if (isPlayerSide) {
@@ -250,6 +329,7 @@ void UIManager::SetGridState(int index, Grid::GridState state, bool isPlayerSide
 void UIManager::DrawHpBar(int x, int y, int width, int height, int hp, int maxHp, unsigned int color, const char* label)
 {
     float rate = (float)hp / (float)maxHp;
+    if (maxHp <= 0) rate = 0.0f;
     int barW = static_cast<int>(width * rate);
     DrawBox(x, y, x + width, y + height, GetColor(80, 80, 80), TRUE); // 背景
     DrawBox(x, y, x + barW, y + height, color, TRUE); // HP

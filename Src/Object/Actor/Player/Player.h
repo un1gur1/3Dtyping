@@ -100,6 +100,7 @@ public:
 	bool IsEnemy() const override { return false; }
 	void SetEnemyList(std::vector<ActorBase*>* list) { enemyList_ = list; }
 
+	std::vector<ActorBase*>*GetEnemyList() const { return enemyList_; }
 
 private:
 	bool isBulletFired_ = false; // ’e”­ŽËƒtƒ‰ƒO’Ç‰Á
