@@ -17,6 +17,9 @@ public:
 
     BulletType GetBulletType() const override { return isPlayer_ ? BulletType::PLAYER : BulletType::ENEMY; }
 
+    void SetTargets(const std::vector<ActorBase*>& targets) {
+        targets_ = targets;
+    }
 private:
     struct ThunderBullet {
         VECTOR pos;
@@ -37,4 +40,5 @@ private:
     std::vector<VECTOR> strikePositions_;
     std::vector<int> strikeGridIndices_;
     int strikeCount_ = 3; // デフォルト: 主要1 + 2ランダム
+    std::vector<ActorBase*> targets_;
 };

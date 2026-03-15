@@ -80,15 +80,25 @@ void AttackManager::Add(AttackBase* attack) {
     attacks_.push_back(attack);
 }
 
+// （既存ファイルの該当箇所のみ変更）
+// UpdateAll の中で各攻撃に対して targets を渡すようにする
+
 void AttackManager::UpdateAll(const std::vector<ActorBase*>& targets) {
     for (auto* attack : attacks_) {
         if (!attack || !attack->IsAlive()) continue;
+
+        // ThunderAttack の場合は targets を渡しておく
+        if (auto* thunder = dynamic_cast<ThunderAttack*>(attack)) {
+            thunder->SetTargets(targets);
+        }
+
         attack->Update();
 
         for (auto* target : targets) {
             if (!target || !target->GetisCollision()) continue;
             if (attack->GetShooter() == target) continue;
 
+            // 以下は既存の判定処理（省略せずそのまま）
             // ブロードフェーズ: グリッド判定
             if (attack->collisionType_ == AttackBase::CollisionType::Grid || attack->collisionType_ == AttackBase::CollisionType::Both) {
                 if (attack->GetTargetGridIdx() == target->gridPos_.x && attack->GetTargetGridIdx() == target->gridPos_.z) {
@@ -136,7 +146,6 @@ void AttackManager::UpdateAll(const std::vector<ActorBase*>& targets) {
         }
     }
 }
-
 void AttackManager::DrawAll() {
     for (auto* attack : attacks_) {
         if (attack && attack->IsAlive()) {
