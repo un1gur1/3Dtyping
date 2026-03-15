@@ -1,5 +1,10 @@
-#include "Enemy.h"
+ï»¿#include "Enemy.h"
 #include <random>
+#include <algorithm>
+#include <cctype>
+#include <fstream>
+#include <unordered_map>
+#include <sstream>
 
 #include "../../Attack/AttackManager.h"
 #include "../../Attack/AttackBase.h"
@@ -12,588 +17,503 @@
 #include "../Player/Player.h"
 #include "../../Attack/Magic/ThunderAttack.h"
 #include "../../../Common/UiManager.h"
+#include "../../../Common/RomanjiConverter.h"
 
 // =======================================================
-// ƒGƒlƒ~[ê—p‚Ìƒwƒ‹ƒp[ŠÖ”i•¶š”ƒJƒEƒ“ƒg—pj
+// ãƒ¦ãƒ¼ãƒ†ã‚£ãƒªãƒ†ã‚£é–¢æ•°ç¾¤ï¼ˆç„¡ååå‰ç©ºé–“ï¼‰
 // =======================================================
 namespace {
-	// UTF-8‚Ì•¶š—ñ‚©‚çuÀÛ‚Ì•¶š”v‚ğƒJƒEƒ“ƒg‚·‚é
-	// i‚Ğ‚ç‚ª‚È1•¶š‚ª3ƒoƒCƒg‚É‚È‚é–â‘è‚ğ‰ğŒˆ‚·‚é‚½‚ßj
 	static size_t GetUtf8CharCount(const std::string& s) {
 		size_t count = 0;
 		for (unsigned char c : s) {
-			// UTF-8‚Ìæ“ªƒoƒCƒgi10xxxxxx ˆÈŠOj‚Ì‚Æ‚«‚¾‚¯ƒJƒEƒ“ƒg
-			if ((c & 0xC0) != 0x80) {
-				count++;
-			}
+			if ((c & 0xC0) != 0x80) count++;
 		}
 		return count;
 	}
 
-	// æ“ª‚©‚ç n •¶š•ª‚Ì UTF-8 •”•ª•¶š—ñ‚ğ•Ô‚·in ‚Íu•¶š”v’PˆÊj
-	static std::string Utf8Substring(const std::string& s, size_t n) {
-		if (n == 0 || s.empty()) return std::string();
-
-		std::string out;
-		out.reserve(s.size());
-		size_t chars = 0;
-		for (size_t i = 0; i < s.size(); ) {
-			unsigned char c = static_cast<unsigned char>(s[i]);
-			size_t len = 1;
-			if (c < 0x80) len = 1;
-			else if ((c & 0xE0) == 0xC0) len = 2;
-			else if ((c & 0xF0) == 0xE0) len = 3;
-			else if ((c & 0xF8) == 0xF0) len = 4;
-			// ”ÍˆÍƒ`ƒFƒbƒN
-			if (i + len > s.size()) len = s.size() - i;
-			if (chars >= n) break;
-			out.append(s.data() + i, len);
-			i += len;
-			chars++;
-		}
-		return out;
+	static bool IsSpaceSafe(const unsigned char ch) {
+		return (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n');
 	}
-}
 
-// ƒRƒ“ƒ{ƒZƒbƒg‰Šú‰»—pƒwƒ‹ƒp[iƒ[ƒJƒ‹j
-// iÈ—ª‚¹‚¸Šù‘¶‚Ì“à—e‚ğˆÛj
-namespace {
-	// ƒVƒ“ƒvƒ‹‚ÈƒRƒ“ƒ{‚ğì¬: ’áHP‚Å‚Íd‚ßE•KE‚ğŠÜ‚ŞƒZƒbƒg‚É‚·‚é
+	static std::string ToLowerTrim(const std::string& s) {
+		std::string t = s;
+		t.erase(t.begin(), std::find_if(t.begin(), t.end(), [](unsigned char ch) { return !IsSpaceSafe(ch); }));
+		t.erase(std::find_if(t.rbegin(), t.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), t.end());
+		for (char& c : t) {
+			const unsigned char uc = static_cast<unsigned char>(c);
+			if (uc < 128) c = static_cast<char>(std::tolower(uc));
+		}
+		return t;
+	}
+
+	static bool IsLikelyRomanji(const std::string& s) {
+		if (s.empty()) return false;
+		bool hasAlpha = false;
+		for (unsigned char c : s) {
+			if (c >= 128) return false;
+			if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) hasAlpha = true;
+		}
+		return hasAlpha;
+	}
+
+	static std::string ConvertRomanjiToHiragana(const std::string& in) {
+		RomanjiConverter conv;
+		std::string filtered;
+		for (unsigned char c : in) {
+			if (c != ' ') filtered += static_cast<char>(std::tolower(c));
+		}
+		return conv.convert(filtered);
+	}
+
+	static std::string ConvertIfRomanji(const std::string& s) {
+		if (IsLikelyRomanji(s)) {
+			const std::string hira = ConvertRomanjiToHiragana(s);
+			if (!hira.empty()) return hira;
+		}
+		return s;
+	}
+
+	static const std::unordered_map<std::string, std::string>& GetWordTypeMap() {
+		static std::unordered_map<std::string, std::string> map;
+		if (!map.empty()) return map;
+
+		std::ifstream ifs("Data/CSV/Word.csv");
+		if (!ifs.is_open()) return map;
+
+		std::string line;
+		while (std::getline(ifs, line)) {
+			if (line.empty()) continue;
+			std::istringstream iss(line);
+			std::string name, type;
+			if (!std::getline(iss, name, ',') || !std::getline(iss, type, ',')) continue;
+
+			const std::string norm = ConvertIfRomanji(ToLowerTrim(name));
+			const std::string ttype = ToLowerTrim(type);
+			if (!norm.empty() && !ttype.empty()) {
+				map.emplace(norm, ttype);
+			}
+		}
+		return map;
+	}
+
+	static std::string PickAttackCommandFromNormalList(const std::unordered_map<std::string, std::string>& wordMap) {
+		const auto& normalCmds = UIManager::GetInstance().normalCommandList_;
+		std::vector<std::string> candidates;
+		for (const auto& orig : normalCmds) {
+			const std::string norm = ConvertIfRomanji(ToLowerTrim(orig));
+			const auto it = wordMap.find(norm);
+			if (it != wordMap.end()) {
+				const std::string& typeLower = it->second;
+				if (typeLower == "attack" || typeLower == "shoot") {
+					candidates.push_back(norm);
+				}
+			}
+		}
+		if (candidates.empty()) return std::string();
+		return candidates[rand() % candidates.size()];
+	}
+
 	static std::vector<std::vector<Enemy::EnemyAction>> CreateDefaultCombos() {
 		using A = Enemy::EnemyAction;
 		std::vector<std::vector<A>> sets;
-		// ‚HPFˆÀ‘S‚É‰“‹——£’†S‚ÌŒy‚¢ƒRƒ“ƒ{
 		sets.push_back({ A::ATTACK_RANGE, A::ATTACK_RANGE, A::ATTACK_RANGE });
-		// ’†HPF‰“‹——£{‹ß‹——£‚ğ¬‚º‚é
 		sets.push_back({ A::ATTACK_RANGE, A::THUNDER, A::ATTACK_RANGE });
-		// ’áHPFŒƒ‚µ‚¢ƒRƒ“ƒ{AÅŒã‚ÉULTIMATE‚ÖŒq‚°‚é‰Â”\«‚ ‚è
 		sets.push_back({ A::THUNDER, A::ATTACK_NEAR, A::THUNDER, A::ULTIMATE });
 		return sets;
 	}
 }
 
-Enemy::Enemy(Player* player)
-{
-	player_ = player;
-	attackManager_ = nullptr;
-	state_ = ActorState::IDLE;
-
-	// ƒRƒ“ƒ{ƒZƒbƒg‰Šú‰»
+// =======================================================
+// åˆæœŸåŒ–ãƒ»ç ´æ£„
+// =======================================================
+Enemy::Enemy(Player* player) : player_(player) {
 	comboSets_ = CreateDefaultCombos();
-	activeComboIndex_ = -1;
-	comboStep_ = 0;
-	comboExecuting_ = false;
-	comboActionInProgress_ = false;
 }
 
-Enemy::~Enemy(void)
-{
-}
+Enemy::~Enemy(void) {}
 
-void Enemy::Update(void)
-{
+// =======================================================
+// Update
+// =======================================================
+void Enemy::Update(void) {
 	ActorBase::Update();
+	const float frameDt = 1.0f / 60.0f;
 
-	// HP”ä—¦
-	float hpRatio = (maxHp_ > 0) ? static_cast<float>(hp_) / static_cast<float>(maxHp_) : 1.0f;
-
-	// ƒRƒ“ƒ{Às’†‚ÌisŠÇ—
-	if (comboExecuting_) {
-		// Œ»İ‚ÌƒAƒNƒVƒ‡ƒ“‚ª–¢ŠJn‚È‚çŠJn‚·‚é
-		if (!comboActionInProgress_) {
-			if (activeComboIndex_ >= 0 && activeComboIndex_ < static_cast<int>(comboSets_.size())
-				&& comboStep_ < static_cast<int>(comboSets_[activeComboIndex_].size())) {
-				EnemyAction action = comboSets_[activeComboIndex_][comboStep_];
-				// Ÿ‚ÌƒAƒNƒVƒ‡ƒ“‚É‰‚¶‚Ä ActorState ‚ğİ’èiŠù‘¶‚ÌƒXƒe[ƒg‚Åˆ—j
-				switch (action) {
-				case EnemyAction::ATTACK_RANGE:
-					ChangeState(ActorState::ATTACK_RANGE);
-					break;
-				case EnemyAction::ATTACK_NEAR:
-				case EnemyAction::THUNDER:
-					// ATTACK_NEAR ‚ÌƒR[ƒh‚Å——‹‚â‹ßÚ‚ğˆµ‚¤‚æ‚¤‚É‚·‚é
-					ChangeState(ActorState::ATTACK_NEAR);
-					break;
-				case EnemyAction::ULTIMATE:
-					ChangeState(ActorState::ULTIMATE);
-					break;
-				default:
-					ChangeState(ActorState::IDLE);
-					break;
-				}
-				// ƒAƒNƒVƒ‡ƒ“ŠJn‚ğƒ}[ƒNiŠeƒXƒe[ƒg“à•”‚Å attackRegistered_ ‚ªg‚í‚ê‚éj
-				comboActionInProgress_ = true;
-			}
-			else {
-				// ƒRƒ“ƒ{I—¹
-				comboExecuting_ = false;
-				activeComboIndex_ = -1;
-				comboStep_ = 0;
-				comboActionInProgress_ = false;
-				ChangeState(ActorState::IDLE);
-			}
-		}
-		else {
-			// ƒAƒNƒVƒ‡ƒ“Às’† -> Šù‘¶ƒXƒe[ƒgˆ—‚É‚æ‚èUŒ‚‚ª¶¬‚³‚ê‚é
-			// ƒAƒNƒVƒ‡ƒ“Š®—¹”»’è: State ‚ª IDLE ‚É–ß‚èAattackRegistered_ ‚ª false ‚É‚È‚Á‚Ä‚¢‚é‚Æ‚«
-			if (state_ == ActorState::IDLE && !comboActionInProgress_) {
-				// i“ñd”»’è–h~: ‚±‚±‰½‚à‚µ‚È‚¢j
-			}
-			if (state_ == ActorState::IDLE && comboActionInProgress_ && !attackRegistered_) {
-				// Œ»İ‚ÌƒAƒNƒVƒ‡ƒ“‚ªŠ®—¹‚µ‚½‚Æ”»’f‚µ‚ÄŸ‚Öi‚ß‚é
-				comboActionInProgress_ = false;
-				comboStep_++;
-				// ƒRƒ“ƒ{I—¹ƒ`ƒFƒbƒN‚ÍŸƒ‹[ƒv‚Ås‚¤
-			}
-		}
-	}
-
-	switch (state_) {
-	case ActorState::IDLE:
-		stateTimer_ -= 1.0f / 60.0f; // 60FPS‘z’è
-		moveTime_ += 0.5f / 60.0f; // ƒtƒŒ[ƒ€‚²‚Æ‚É‰ÁZ
-		//// U•200, üŠú2•b‚Å¶‰E‚É“®‚­
-		pos_.x = 30.0f * sinf(moveTime_ * DX_TWO_PI / 2.0f);
-
-		if (stateTimer_ <= 0.0f) {
-			// HPè‡’l‚ÅULTIMATE‹­§‘JˆÚ
-			if (hp_ < maxHp_ * 0.5f) {
-				ChangeState(ActorState::ULTIMATE);
-				break;
-			}
-
-			// ƒRƒ“ƒ{Às‚ÌŠJn: HPó‘Ô‚É‰‚¶‚½ƒRƒ“ƒ{‚ğ‘I‘ğ‚µ‚Ä‡‚ÉÀs‚·‚é
-			if (!comboExecuting_) {
-				// HPó‘Ô‚²‚Æ‚ÉƒRƒ“ƒ{‘I‘ğ
-				int comboChoice = 0;
-				if (hpRatio >= HP_HIGH) {
-					// ‚HP‘Ñ: 0”ÔƒZƒbƒg
-					comboChoice = 0;
-				}
-				else if (hpRatio >= HP_LOW) {
-					// ’†HP‘Ñ: 1”ÔƒZƒbƒg
-					comboChoice = 1;
-				}
-				else {
-					// ’áHP‘Ñ: 2”ÔƒZƒbƒgi‹­—Íj
-					comboChoice = 2;
-				}
-				// ƒ‰ƒ“ƒ_ƒ€«‚ğ­‚µ’Ç‰Á‚µ‚ÄƒoƒŠƒG[ƒVƒ‡ƒ“‚ğo‚·
-				if (rand() % 100 < 20) {
-					// 20%‚Å•ÊƒZƒbƒg‚ğg‚¤iˆÀ‘Sôj
-					comboChoice = (comboChoice + 1) % static_cast<int>(comboSets_.size());
-				}
-				activeComboIndex_ = comboChoice;
-				comboStep_ = 0;
-				comboExecuting_ = true;
-				comboActionInProgress_ = false; // Ÿƒ‹[ƒv‚ÅÅ‰‚ÌƒAƒNƒVƒ‡ƒ“‚ğŠJn‚·‚é
-			}
-			else {
-				// Šù‚ÉƒRƒ“ƒ{Às’†‚È‚ç”O‚Ì‚½‚ß IDLE ‚ğˆÛ
-			}
-		}
-		break;
-	case ActorState::ATTACK_RANGE:
-		if (!attackRegistered_) {
-			VECTOR playerPos = player_->GetPos();
-
-			// ”­ËŠJnˆÊ’uiY‚¾‚¯ã‚°‚éj
-			VECTOR launchPos = pos_;
-			launchPos.y += 00.0f;
-
-			// launchPos ‚©‚ç playerPos ‚Ö‚Ì•ûŒüƒxƒNƒgƒ‹
-			VECTOR toPlayer = {
-				playerPos.x - launchPos.x,
-				playerPos.y - launchPos.y,
-				playerPos.z - launchPos.z
-			};
-			float len = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y + toPlayer.z * toPlayer.z);
-			VECTOR dir = { 0, 0, 0 };
-			if (len > 0.0f) {
-				dir.x = toPlayer.x / len;
-				dir.y = toPlayer.y / len;
-				dir.z = toPlayer.z / len;
-			}
-			VECTOR velocity = { dir.x * 20.0f, dir.y * 20.0f, dir.z * 20.0f };
-			auto attack = new RangedAttack(
-				-1,         // targetGridIdx
-				false,      // isPlayer
-				velocity,   // ‘¬“xƒxƒNƒgƒ‹
-				4.0f,       // lifeTime
-				23,         // damage
-				this        // shooter
-			);
-			attack->SetPos(launchPos); // ”­ËŠJnˆÊ’u‚ğ–¾¦“I‚Éİ’è
-			attackManager_->Add(attack);
-			attackRegistered_ = true;
-			isAttacking_ = true;
-			stateTimer_ = 1.0f;
-		}
-		stateTimer_ -= 1.0f / 60.0f;
-		if (stateTimer_ <= 0.0f) {
-			ChangeState(ActorState::IDLE);
-			isAttacking_ = false;
-		}
-		break;
-
-
-
-	case ActorState::ATTACK_NEAR://‰¼‚Å——‹
-		if (!attackRegistered_) {
-			int thunderCount = 3 + rand() % 3; // 3`5ŒÂ
-			float thunderHeight = 50.0f;
-
-			// ƒOƒŠƒbƒhŒğ“_ƒŠƒXƒg‚ğì¬ -800, -400, 0, 400, 800,
-			std::vector<VECTOR> gridPoints;
-			for (int x = -800; x <= 800; x += 400) {
-				for (int z = -800; z <= 800; z += 400) {
-					VECTOR p = { (float)x, 0.0f, (float)z };
-					gridPoints.push_back(p);
-				}
-			}
-
-			for (int i = 0; i < thunderCount; ++i) {
-				int idx = rand() % gridPoints.size();
-				VECTOR thunderPos = gridPoints[idx];
-				thunderPos.y += thunderHeight; // ã‹ó‚©‚ç—‚Æ‚·
-
-				VECTOR velocity = { 0.0f, -100.0f, 0.0f };
-
-				// ƒOƒŠƒbƒh”Ô†‚ğæ“¾
-				int gridIdx = AttackBase::CalcGridIndex(thunderPos, false);
-
-				auto thunder = new ThunderAttack(
-					gridIdx,
-					false,
-					velocity,
-					1.0f,
-					20,
-					this
-				);
-				thunder->SetPos(thunderPos);
-				attackManager_->Add(thunder);
-			}
-			attackRegistered_ = true;
-			stateTimer_ = 1.0f;
-			isAttacking_ = true;
-		}
-		stateTimer_ -= 1.0f / 60.0f;
-		if (stateTimer_ <= 0.0f) {
-			ChangeState(ActorState::IDLE);
-			isAttacking_ = false;
-		}
-		break;
-
-	case ActorState::ULTIMATE:
-		if (!attackRegistered_) {
-			// ƒvƒŒƒCƒ„[‚ª“o˜^‚µ‚½•KE‹ZƒRƒ}ƒ“ƒh‚©‚çƒ‰ƒ“ƒ_ƒ€‘I‘ğ
-			if (!attackManager_->registeredCommands_.empty()) {
-				int idx = rand() % attackManager_->registeredCommands_.size();
-				const auto& pair = attackManager_->registeredCommands_[idx];
-				std::string commandStr = pair.first;
-				std::string commandId = pair.second;
-				StartTypingUltimate(commandStr);
-				// UI‚É“G‚Ì‰r¥‚ğ’Ê’m
-				UIManager::GetInstance().SetEnemyCasting(commandStr);
-			}
-			attackRegistered_ = true;
-			isAttacking_ = true;
-		}
-		// ƒ^ƒCƒsƒ“ƒO‰‰o‚ªI‚í‚Á‚½‚çIDLE‚É–ß‚·
-		if (attackRegistered_ && typingCommand_.empty()) {
-			ChangeState(ActorState::IDLE);
-			isAttacking_ = false;
-			// ƒRƒ“ƒ{Às’†‚È‚çULTƒAƒNƒVƒ‡ƒ“‚Æ‚µ‚Äˆµ‚¢AI—¹‚³‚¹‚é
-			if (comboExecuting_) {
-				comboActionInProgress_ = false;
-				comboStep_++;
-			}
-		}
-		break;
-
-	case ActorState::STUN:
-		stateTimer_ -= 1.0f / 60.0f;
-		if (stateTimer_ <= 0.0f) {
-			ChangeState(ActorState::IDLE);
-		}
-		break;
-	}
-
-	if (!typingCommand_.empty()) {
-		UpdateTypingUltimate(1.0f / 60.0f); // deltaTime‚ÍƒtƒŒ[ƒ€ŠÔ
-	}
-
-	// ƒ‚ƒfƒ‹‚ÌˆÊ’u‚ğ”½‰f
-	MV1SetPosition(modelId_, pos_);
-	// •à‚­ƒAƒjƒ[ƒVƒ‡ƒ“Ä¶
-// UŒ‚ó‘Ô‚ÌŠÇ—i—á: isAttacking_ ƒtƒ‰ƒO‚ğ—pˆÓj
+	// ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³åˆ¶å¾¡
 	if (isAttacking_) {
-		// UŒ‚ƒAƒjƒ[ƒVƒ‡ƒ“ŠJn‚Ì‚İÄ¶
 		if (animationController_->GetPlayType() != static_cast<int>(ANIM_TYPE::SHOT)) {
 			animationController_->Play(static_cast<int>(ANIM_TYPE::SHOT), false);
 		}
-		// ƒAƒjƒ[ƒVƒ‡ƒ“‚ªI—¹‚µ‚½‚çUŒ‚ó‘Ô‰ğœ
-		if (animationController_->IsEnd()) {
-			isAttacking_ = false;
-		}
+		if (animationController_->IsEnd()) isAttacking_ = false;
 	}
 	else {
-		// ’ÊíƒAƒjƒ[ƒVƒ‡ƒ“
 		animationController_->Play(static_cast<int>(ANIM_TYPE::IDLE));
 	}
-}
+	animationController_->Update();
 
-void Enemy::Draw(void)
-{
-	//if (isNoticeView_)
-	//{
-	//	// ‹–ì”ÍˆÍ“àFƒfƒBƒtƒ…[ƒYƒJƒ‰[‚ğÔF‚É‚·‚é
-	//	MV1SetMaterialDifColor(modelId_, 0, GetColorF(1.0f, 0.0f, 0.0f, 1.0f));
-	//}
-	//else if (isNoticeHearing_)
-	//{
-	//	// ’®Šo”ÍˆÍ“àFƒfƒBƒtƒ…[ƒYƒJƒ‰[‚ğ‰©F‚É‚·‚é
-	//	MV1SetMaterialDifColor(modelId_, 0, GetColorF(1.0f, 1.0f, 0.0f, 1.0f));
-	//}
-	//else
-	//{
-	//	// ‹–ì”ÍˆÍŠOFƒfƒBƒtƒ…[ƒYƒJƒ‰[‚ğŠDF‚É‚·‚é
-	//	MV1SetMaterialDifColor(modelId_, 0, GetColorF(0.5f, 0.5f, 0.5f, 1.0f));
-	//}
-
-	ActorBase::Draw();
-
-	// ‹–ì•`‰æ
-	//DrawViewRange();
-	// --- ƒJƒvƒZƒ‹“–‚½‚è”»’è‚ÌƒfƒoƒbƒO•\¦ ---
-	VECTOR start = VAdd(pos_, startCapsulePos_);
-	VECTOR end = VAdd(pos_, endCapsulePos_);
-	float radius = capsuleRadius_;
-	//DrawCapsule3D(start, end, radius, 16, GetColor(0, 255, 0), false,false);
-
-	//DrawFormatString(700, 10, 0xFFFFFF, "HP: %d / %d", GetHp(), GetMaxHp());
-
-	// ƒ^ƒCƒsƒ“ƒOi’»‚ÌƒfƒoƒbƒO•\¦i’Ç‰Áj
-	if (!typingCommand_.empty()) {
-		// ‡Œv•¶š”iUTF-8•¶š”j
-		size_t totalChars = GetUtf8CharCount(typingCommand_);
-		// Œ»İ‚Ì“ü—ÍÏ‚İ•¶š”iŒo‰ßŠÔ”ä—¦‚©‚çZoj
-		float ratio = 0.0f;
-		if (typingWait_ > 0.0f) {
-			ratio = typingElapsed_ / typingWait_;
-			if (ratio < 0.0f) ratio = 0.0f;
-			if (ratio > 1.0f) ratio = 1.0f;
-		}
-		size_t typedChars = static_cast<size_t>(ratio * static_cast<float>(totalChars));
-		if (typedChars > totalChars) typedChars = totalChars;
-
-		// æ“ª typedChars •¶š‚ğØ‚èo‚·
-		std::string typedStr = Utf8Substring(typingCommand_, typedChars);
-
-		// ƒtƒ‹ƒRƒ}ƒ“ƒh‚ğ•\¦iƒIƒŒƒ“ƒWj
-		DrawFormatString(700, 50, 0xFFAA00, "UltimateCmd: %s", typingCommand_.c_str());
-		// “ü—ÍÏ‚İ•”•ª‚ğ•ÊF‚Å•\¦i—Îj
-		DrawFormatString(700, 70, 0x00FF00, "Typed: %s (%zu/%zu)", typedStr.c_str(), typedChars, totalChars);
+	// ãƒ•ãƒ¯ãƒ•ãƒ¯ç§»å‹•
+	if (!isAttacking_ && typingCommand_.empty()) {
+		moveTime_ += frameDt;
+		pos_.x = 30.0f * sinf(moveTime_ * DX_TWO_PI / 2.0f);
 	}
-
-	//// --- UŒ‚ƒXƒe[ƒg‚ÌƒfƒoƒbƒO•\¦ ---
-	//const char* stateStr = "";
-	//switch (state_) {
-	//case ActorState::IDLE:         stateStr = "IDLE"; break;
-	//case ActorState::ATTACK_NEAR:  stateStr = "ATTACK_NEAR"; break;
-	//case ActorState::ATTACK_RANGE: stateStr = "ATTACK_RANGE"; break;
-	//case ActorState::ULTIMATE:     stateStr = "ULTIMATE"; break;
-	//case ActorState::STUN:         stateStr = "STUN"; break;
-	//default:                       stateStr = "UNKNOWN"; break;
-	//}
-	//DrawFormatString(700, 30, 0x00FF00, "EnemyState: %s", stateStr);
-
-	//// --- ƒfƒoƒbƒO—pFULTIMATEƒRƒ}ƒ“ƒh–¼‚Ì•\¦ ---
-	//if (!typingCommand_.empty()) {
-	//	DrawFormatString(700, 50, 0xFFAA00, "UltimateCmd: %s", typingCommand_.c_str());
-	//}
-
-	ActorBase::Draw();
-}
-
-// iˆÈ‰º‚ÌŠÖ”ŒQ‚Í•ÏX‚È‚µj
-void Enemy::InitLoad(void)
-{
-	// ƒ‚ƒfƒ‹‚Ì“Ç‚İ‚İ
-	modelId_ = MV1LoadModel((Application::PATH_MODEL + "Player/Player.mv1").c_str());
-}
-
-void Enemy::InitTransform(void)
-{
-	// ƒ‚ƒfƒ‹‚ÌŠp“x
-	angle_ = { 0.0f, AsoUtility::Deg2RadF(90), 0.0f };
-	localAngle_ = { 0.0f, AsoUtility::Deg2RadF(270.0f), 0.0f };
-
-	moveDir_ = { sinf(angle_.y), 0.0f, cosf(angle_.y) };
-	MATRIX mat = MatrixUtility::Multiplication(localAngle_, angle_);
-	MV1SetRotationMatrix(modelId_, mat);
-
-	// ƒOƒŠƒbƒhŠO‚É”z’ui—á: X=-500, Y=-400, Z=1000j
-	//pos_ = { 0.0f, -2000.0f, 4000.0f };
-	pos_ = { 0.0f, -0, 1200 };
-
-	// ƒ{ƒXƒTƒCƒY‚ÉŠg‘åi—á: X=30, Y=18, Z=18j
-	//scale_ = { 30, 18, 18 };
-	scale_ = { 1, 1, 1 };
 	MV1SetPosition(modelId_, pos_);
-	MV1SetScale(modelId_, scale_);
 
-	// “–‚½‚è”»’è‚à‘å‚«‚­
-	//startCapsulePos_ = { 0.0f, 2500, 0.0f };
-	//endCapsulePos_ = { 0.0f, 90.0f, 0.0f };
-	//capsuleRadius_ = 400.0f;
+	// --- 1. ã‚¯ãƒ¼ãƒ«ãƒ€ã‚¦ãƒ³ãƒ»å¾…æ©Ÿå‡¦ç† ---
+	if (attackCooldownTimer_ > 0.0f) {
+		attackCooldownTimer_ -= frameDt;
+		if (attackCooldownTimer_ < 0.0f) attackCooldownTimer_ = 0.0f;
+	}
 
-	startCapsulePos_ = { 0.0f,110,0.0f };
-	endCapsulePos_ = { 0.0f,30.0f,0.0f };
-	capsuleRadius_ = 20.0f;
+	if (waitingForAttackFinish_) {
+		if (attackCooldownTimer_ <= 0.0f && !IsMyAttackAlive()) {
+			waitingForAttackFinish_ = false;
+			StartNextComboStep();
+		}
+		// UIManagerã«å¾…æ©ŸçŠ¶æ…‹ã‚’é€ä¿¡
+		UIManager::GetInstance().SetEnemyWaitState(waitingForAttackFinish_, attackCooldownTimer_);
+		return;
+	}
 
-	isCollision_ = true;
-	moveCenterX_ = pos_.x;
-}
+	// --- 2. è© å”±å‡¦ç† ---
+	if (!typingCommand_.empty()) {
+		UpdateTypingUltimate(frameDt);
+		return;
+	}
 
+	// å¾…æ©Ÿã§ã‚‚è© å”±ã§ã‚‚ãªã„å ´åˆã¯UIManagerã®é€šçŸ¥ã‚’ã‚¯ãƒªã‚¢
+	UIManager::GetInstance().SetEnemyWaitState(false, 0.0f);
 
-void Enemy::InitAnimation(void)
-{
-	// ƒ‚ƒfƒ‹ƒAƒjƒ[ƒVƒ‡ƒ“§Œä‚Ì‰Šú‰»
-	animationController_ = new AnimationController(modelId_);
+	// --- 3. ã‚³ãƒ³ãƒœé–‹å§‹ ---
+	if (state_ == ActorState::IDLE) {
+		stateTimer_ -= frameDt;
+		if (stateTimer_ <= 0.0f) {
 
-	// ƒAƒjƒ[ƒVƒ‡ƒ“‚Ì’Ç‰Á
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::IDLE), 0.5f, Application::PATH_MODEL + "Player/Idle.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::WALK), 0.5f, Application::PATH_MODEL + "Player/Walk.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::SHOT), 0.f, Application::PATH_MODEL + "Player/Shot.mv1");
-	// ‰ŠúƒAƒjƒ[ƒVƒ‡ƒ“‚ÌÄ¶
-	animationController_->Play(static_cast<int>(ANIM_TYPE::WALK));
-}
+			const float hpRatio = (maxHp_ > 0) ? static_cast<float>(hp_) / static_cast<float>(maxHp_) : 1.0f;
+			if (hpRatio < 0.5f && rand() % 100 < 30) {
+				activeComboIndex_ = -1;
+				StartTypingUltimate("ã»ã‚ã³ã®ã°ãƒ¼ã™ã¨ã™ã¨ã‚Šãƒ¼ã‚€");
+				PreparePlannedAttackData();
+				return;
+			}
 
-void Enemy::InitPost(void)
-{
-	isNoticeView_ = false;
-	isNoticeHearing_ = false;
-}
+			if (hpRatio >= HP_HIGH) activeComboIndex_ = 0;
+			else if (hpRatio >= HP_LOW) activeComboIndex_ = 1;
+			else activeComboIndex_ = 2;
 
-//void Enemy::DrawViewRange(void)
-// (È—ª: ƒRƒƒ“ƒgƒAƒEƒg‚»‚Ì‚Ü‚Ü)
+			if (rand() % 100 < 20) {
+				activeComboIndex_ = (activeComboIndex_ + 1) % comboSets_.size();
+			}
 
-void Enemy::ApplyDamage(int damage) {
-	hp_ -= damage;
-	if (hp_ < 0) hp_ = 0;
-	// ƒ{ƒX—p‚Ì’Ç‰Áˆ—i—áFƒGƒtƒFƒNƒgASEA‚Ğ‚é‚İƒQ[ƒW‰ÁZ‚È‚Çj
-}
-
-void Enemy::AddStun(int value) {
-	stunGauge_ += value;
-	if (stunGauge_ > maxStunGauge_) stunGauge_ = maxStunGauge_;
-	// ƒ{ƒX—p‚Ì’Ç‰Áˆ—
-}
-
-void Enemy::OnStunned() {
-	// ƒ{ƒX‚ª‚Ğ‚é‚ñ‚¾‚Ìˆ—
-	// —áFƒXƒe[ƒg‚ğSTUN‚É•ÏXAƒGƒtƒFƒNƒgÄ¶‚È‚Ç
-}
-
-bool Enemy::IsDead() const {
-	return hp_ <= 0;
-}
-
-
-void Enemy::ChangeState(ActorState state)
-{
-	state_ = state;
-	attackRegistered_ = false;
-	switch (state_) {
-	case ActorState::IDLE:
-		stateTimer_ = 3.0f; // ‘Ò‹@ŠÔ—á
-		break;
-	case ActorState::ATTACK_NEAR:
-		// ‹ßÚUŒ‚€”õ
-		break;
-	case ActorState::ATTACK_RANGE:
-
-		break;
-	case ActorState::ULTIMATE:
-		// •KE‹Z€”õ
-		break;
-	case ActorState::STUN:
-		stateTimer_ = 2.0f; // ‚Ğ‚é‚İŠÔ—á
-		break;
+			comboStep_ = 0;
+			StartNextComboStep();
+		}
 	}
 }
 
-ActorBase::ActorState Enemy::GetState() const
-{
-	return ActorState();
+// =======================================================
+// ã‚³ãƒ³ãƒœåˆ¶å¾¡
+// =======================================================
+void Enemy::StartNextComboStep() {
+	if (activeComboIndex_ < 0 || activeComboIndex_ >= static_cast<int>(comboSets_.size())) {
+		ChangeState(ActorState::IDLE);
+		stateTimer_ = 2.0f;
+		return;
+	}
+
+	if (comboStep_ >= static_cast<int>(comboSets_[activeComboIndex_].size())) {
+		activeComboIndex_ = -1;
+		ChangeState(ActorState::IDLE);
+		stateTimer_ = 2.0f;
+		return;
+	}
+
+	const auto& wordMap = GetWordTypeMap();
+	const EnemyAction nextAction = comboSets_[activeComboIndex_][comboStep_];
+	std::string cmd;
+
+	if (nextAction == EnemyAction::ULTIMATE) {
+		if (attackManager_ && !attackManager_->registeredCommands_.empty()) {
+			cmd = attackManager_->registeredCommands_[rand() % attackManager_->registeredCommands_.size()].first;
+		}
+		ChangeState(ActorState::ULTIMATE);
+	}
+	else {
+		cmd = PickAttackCommandFromNormalList(wordMap);
+		if (cmd.empty() && attackManager_ && !attackManager_->registeredCommands_.empty()) {
+			cmd = attackManager_->registeredCommands_[rand() % attackManager_->registeredCommands_.size()].first;
+		}
+		ChangeState((nextAction == EnemyAction::ATTACK_RANGE) ? ActorState::ATTACK_RANGE : ActorState::ATTACK_NEAR);
+	}
+
+	if (!cmd.empty()) {
+		StartTypingUltimate(cmd);
+		PreparePlannedAttackData();
+		isAttacking_ = true;
+	}
+	else {
+		comboStep_ = 999;
+		StartNextComboStep();
+	}
 }
 
+bool Enemy::IsMyAttackAlive() const {
+	if (!attackManager_) return false;
+	for (const auto* a : attackManager_->GetAttacks()) {
+		if (a && a->GetShooter() == this && a->IsAlive()) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// =======================================================
+// è© å”±ãƒ»æ”»æ’ƒãƒ‡ãƒ¼ã‚¿
+// =======================================================
 void Enemy::StartTypingUltimate(const std::string& command) {
 	typingCommand_ = command;
 	typingElapsed_ = 0.0f;
 
-	// UI‚É‰r¥‚ğ’Ê’m
-	UIManager::GetInstance().SetEnemyCasting(command);
+	const size_t charCount = GetUtf8CharCount(command);
+	const float hpRatio = (maxHp_ > 0) ? static_cast<float>(hp_) / static_cast<float>(maxHp_) : 1.0f;
+	const float perChar = (hpRatio >= HP_HIGH) ? 1.0f : 0.2f;
 
-	// š ‚±‚±‚ªC³‚ÌƒLƒ‚I ƒoƒCƒg”‚Å‚Í‚È‚­ÀÛ‚Ì•¶š”‚ğ”‚¦‚é
-	size_t charCount = GetUtf8CharCount(command);
+	typingWait_ = static_cast<float>(charCount) * perChar;
 
-	// 1•¶š0.2•b ~ ÀÛ‚Ì•¶š”
-	typingWait_ = static_cast<float>(charCount) * 0.2f;
+	// UIã«è© å”±é–‹å§‹ã‚’é€šçŸ¥
+	UIManager::GetInstance().SetEnemyCasting(typingCommand_, typingElapsed_, typingWait_);
 }
 
-void Enemy::UpdateTypingUltimate(float deltaTime) {
-	if (!typingCommand_.empty()) {
-		typingElapsed_ += deltaTime;
-		if (typingElapsed_ >= typingWait_) {
-			// •KE‹Z”­“®
-			// ƒRƒ}ƒ“ƒhIDæ“¾
-			auto it = std::find_if(
-				attackManager_->registeredCommands_.begin(),
-				attackManager_->registeredCommands_.end(),
-				[&](const auto& pair) { return pair.first == typingCommand_; }
-			);
-			if (it != attackManager_->registeredCommands_.end()) {
-				std::string commandId = it->second;
-				auto dataIt = attackManager_->ultimateCommandDataMap_.find(commandId);
-				if (dataIt != attackManager_->ultimateCommandDataMap_.end()) {
-					const auto& data = dataIt->second;
+void Enemy::UpdateTypingUltimate(const float deltaTime) {
+	if (typingCommand_.empty()) return;
 
-					// —áFƒvƒŒƒCƒ„[•ûŒü‚É’¼i‚·‚é•KE‹Z
-					VECTOR playerPos = player_->GetPos();
-					VECTOR toPlayer = {
-						playerPos.x - pos_.x,
-						playerPos.y - pos_.y,
-						playerPos.z - pos_.z
-					};
-					float len = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y + toPlayer.z * toPlayer.z);
-					VECTOR dir = { 0, 0, 0 };
-					if (len > 0.0f) {
-						dir.x = toPlayer.x / len;
-						dir.y = toPlayer.y / len;
-						dir.z = toPlayer.z / len;
-					}
-					VECTOR velocity = { dir.x * data.speed, dir.y * data.speed, dir.z * data.speed };
+	typingElapsed_ += deltaTime;
 
-					auto ultimate = new UltimateAttack(
-						-1,         // targetGridIdx
-						false,      // isPlayer
-						velocity,   // ‘¬“x
-						1.0f,       // lifeTime
-						data.damage,// damage
-						this        // shooter
-					);
-					ultimate->SetPos(pos_); // ”­ËˆÊ’u‚ğ–¾¦“I‚Éİ’è
-					attackManager_->Add(ultimate);
+	// æ¯ãƒ•ãƒ¬ãƒ¼ãƒ UIã«é€²æ—ã‚’é€šçŸ¥
+	UIManager::GetInstance().SetEnemyCasting(typingCommand_, typingElapsed_, typingWait_);
+
+	if (typingElapsed_ < typingWait_) return;
+
+	// --- è© å”±å®Œäº†ç™ºå°„ ---
+	if (!plannedAttacks_.empty() && attackManager_) {
+		for (const auto& pa : plannedAttacks_) {
+			if (pa.kind == PlannedAttack::Kind::ULTIMATE) {
+				auto ultimate = new UltimateAttack(-1, false, pa.velocity, 1.0f, pa.damage, this);
+				ultimate->SetPos(pa.pos);
+				attackManager_->Add(ultimate);
+			}
+			else if (pa.kind == PlannedAttack::Kind::THUNDER) {
+				for (const auto& tpos : pa.thunderPositions) {
+					const VECTOR velocity = { 0.0f, -100.0f, 0.0f };
+					const int gridIdx = AttackBase::CalcGridIndex(tpos, false);
+					auto thunder = new ThunderAttack(gridIdx, false, velocity, 1.0f, pa.damage, this);
+					thunder->SetPos(tpos);
+					attackManager_->Add(thunder);
 				}
 			}
-			typingCommand_.clear();
-			// UI‚É‰r¥I—¹‚ğ’Ê’mi‹ó‚É‚·‚éj
-			UIManager::GetInstance().SetEnemyCasting("");
+			else if (pa.kind == PlannedAttack::Kind::RANGED) {
+				auto ranged = new RangedAttack(-1, false, pa.velocity, 4.0f, pa.damage, this);
+				ranged->SetPos(pa.pos);
+				attackManager_->Add(ranged);
+			}
+		}
+	}
+
+	plannedAttacks_.clear();
+	typingCommand_.clear();
+
+	// è© å”±çµ‚äº†ã‚’UIã«é€šçŸ¥
+	UIManager::GetInstance().SetEnemyCasting("", 0.0f, 0.0f);
+
+	isAttacking_ = false;
+	ChangeState(ActorState::IDLE);
+
+	attackCooldownTimer_ = attackCooldown_;
+	waitingForAttackFinish_ = true;
+	comboStep_++;
+}
+
+void Enemy::PreparePlannedAttackData() {
+	plannedAttacks_.clear();
+	if (typingCommand_.empty()) return;
+
+	const auto makeFallbackData = [&](const std::string& key) {
+		const std::size_t hv = std::hash<std::string>{}(key);
+		struct { int damage; float speed; } d;
+		d.damage = 15 + static_cast<int>(hv % 36);
+		d.speed = 10.0f + static_cast<float>((hv / 37) % 21);
+		return d;
+		};
+
+	int damage = 0;
+	float speed = 0.0f;
+	std::string typeLower = "";
+	const auto& wordMap = GetWordTypeMap();
+
+	if (attackManager_) {
+		const auto it = std::find_if(attackManager_->registeredCommands_.begin(), attackManager_->registeredCommands_.end(),
+			[&](const auto& pair) { return pair.first == typingCommand_; });
+
+		if (it != attackManager_->registeredCommands_.end()) {
+			const std::string commandId = it->second;
+			const auto dataIt = attackManager_->ultimateCommandDataMap_.find(commandId);
+			if (dataIt != attackManager_->ultimateCommandDataMap_.end()) {
+				damage = dataIt->second.damage;
+				speed = dataIt->second.speed;
+			}
+		}
+	}
+
+	if (damage == 0) {
+		const auto fb = makeFallbackData(typingCommand_);
+		damage = fb.damage;
+		speed = fb.speed;
+	}
+
+	const auto wit = wordMap.find(typingCommand_);
+	if (wit != wordMap.end()) {
+		typeLower = wit->second;
+	}
+
+	if (state_ == ActorState::ULTIMATE) {
+		const VECTOR playerPos = player_->GetPos();
+		const VECTOR toPlayer = { playerPos.x - pos_.x, playerPos.y - pos_.y, playerPos.z - pos_.z };
+		const float len = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y + toPlayer.z * toPlayer.z);
+		VECTOR dir = { 0,0,0 };
+		if (len > 0.0f) { dir.x = toPlayer.x / len; dir.y = toPlayer.y / len; dir.z = toPlayer.z / len; }
+
+		PlannedAttack pa;
+		pa.kind = PlannedAttack::Kind::ULTIMATE;
+		pa.pos = pos_;
+		pa.velocity = { dir.x * speed, dir.y * speed, dir.z * speed };
+		pa.damage = damage;
+		plannedAttacks_.push_back(pa);
+	}
+	else if (typeLower == "shoot") {
+		const int thunderCount = 3 + rand() % 3;
+		std::vector<VECTOR> positions;
+
+		// 1ç™ºç›®ã¯è© å”±é–‹å§‹æ™‚ã®ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼è¶³å…ƒã¸
+		VECTOR targetPos = player_->GetPos();
+		targetPos.y = 50.0f;
+		positions.push_back(targetPos);
+
+		// æ®‹ã‚Šã¯ãƒ©ãƒ³ãƒ€ãƒ 
+		for (int i = 1; i < thunderCount; ++i) {
+			const int gx = static_cast<int>(targetPos.x) + (-400 + (rand() % 3) * 400);
+			const int gz = static_cast<int>(targetPos.z) + (-400 + (rand() % 3) * 400);
+			positions.push_back({ static_cast<float>(gx), 50.0f, static_cast<float>(gz) });
+		}
+
+		PlannedAttack pa;
+		pa.kind = PlannedAttack::Kind::THUNDER;
+		pa.damage = damage;
+		pa.thunderPositions = std::move(positions);
+		plannedAttacks_.push_back(pa);
+	}
+	else {
+		const VECTOR playerPos = player_->GetPos();
+		const VECTOR toPlayer = { playerPos.x - pos_.x, playerPos.y - pos_.y, playerPos.z - pos_.z };
+		const float len = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y + toPlayer.z * toPlayer.z);
+		VECTOR dir = { 0,0,0 };
+		if (len > 0.0f) { dir.x = toPlayer.x / len; dir.y = toPlayer.y / len; dir.z = toPlayer.z / len; }
+
+		PlannedAttack pa;
+		pa.kind = PlannedAttack::Kind::RANGED;
+		pa.pos = pos_;
+		pa.velocity = { dir.x * speed, dir.y * speed, dir.z * speed };
+		pa.damage = damage;
+		plannedAttacks_.push_back(pa);
+	}
+}
+
+void Enemy::OnAttackCancelled() {
+	typingCommand_.clear();
+	UIManager::GetInstance().SetEnemyCasting("", 0.0f, 0.0f);
+	plannedAttacks_.clear();
+	isAttacking_ = false;
+	waitingForAttackFinish_ = false;
+	ChangeState(ActorState::IDLE);
+}
+
+// =======================================================
+// ãã®ä»–ã‚·ã‚¹ãƒ†ãƒ 
+// =======================================================
+void Enemy::Draw(void) {
+	ActorBase::Draw();
+
+	// è© å”±ä¸­ã®æ”»æ’ƒä½ç½®ï¼ˆ3Dç©ºé–“ã®äºˆæ¸¬ç·šã‚„çƒï¼‰ã®ã¿æç”»
+	if (!typingCommand_.empty() && !plannedAttacks_.empty()) {
+		for (const auto& pa : plannedAttacks_) {
+			if (pa.kind == PlannedAttack::Kind::THUNDER) {
+				for (const auto& tpos : pa.thunderPositions) {
+					VECTOR drawPos = tpos;
+					drawPos.y += 5.0f;
+					DrawSphere3D(drawPos, 30.0f, 12, GetColor(255, 160, 0), true, false);
+				}
+			}
+			else if (pa.kind == PlannedAttack::Kind::RANGED || pa.kind == PlannedAttack::Kind::ULTIMATE) {
+				const VECTOR startPos = pa.pos;
+				const float lifetime = (pa.kind == PlannedAttack::Kind::ULTIMATE) ? 1.0f : 4.0f;
+				const VECTOR impact = { startPos.x + pa.velocity.x * lifetime,
+								  startPos.y + pa.velocity.y * lifetime,
+								  startPos.z + pa.velocity.z * lifetime };
+				const unsigned int lineColor = (pa.kind == PlannedAttack::Kind::ULTIMATE) ? GetColor(255, 80, 80) : GetColor(120, 200, 255);
+
+				DrawLine3D(startPos, impact, lineColor);
+				VECTOR ip = impact;
+				ip.y += 5.0f;
+				DrawSphere3D(ip, 18.0f, 12, lineColor, true, false);
+			}
 		}
 	}
 }
+
+void Enemy::ChangeState(const ActorState state) {
+	state_ = state;
+	switch (state_) {
+	case ActorState::IDLE:
+		break;
+	case ActorState::STUN:
+		stateTimer_ = 2.0f;
+		break;
+	default:
+		break;
+	}
+}
+
+ActorBase::ActorState Enemy::GetState() const { return state_; }
+
+void Enemy::InitLoad(void) { modelId_ = MV1LoadModel((Application::PATH_MODEL + "Player/Player.mv1").c_str()); }
+void Enemy::InitTransform(void) {
+	angle_ = { 0.0f, AsoUtility::Deg2RadF(90), 0.0f };
+	localAngle_ = { 0.0f, AsoUtility::Deg2RadF(270.0f), 0.0f };
+	moveDir_ = { sinf(angle_.y), 0.0f, cosf(angle_.y) };
+	MV1SetRotationMatrix(modelId_, MatrixUtility::Multiplication(localAngle_, angle_));
+	pos_ = { 0.0f, 0.0f, 1200.0f };
+	scale_ = { 1.0f, 1.0f, 1.0f };
+	MV1SetPosition(modelId_, pos_);
+	MV1SetScale(modelId_, scale_);
+	startCapsulePos_ = { 0.0f, 110.0f, 0.0f };
+	endCapsulePos_ = { 0.0f, 30.0f, 0.0f };
+	capsuleRadius_ = 20.0f;
+	isCollision_ = true;
+	moveCenterX_ = pos_.x;
+}
+void Enemy::InitAnimation(void) {
+	animationController_ = new AnimationController(modelId_);
+	animationController_->Add(static_cast<int>(ANIM_TYPE::IDLE), 0.5f, Application::PATH_MODEL + "Player/Idle.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::WALK), 0.5f, Application::PATH_MODEL + "Player/Walk.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::SHOT), 0.0f, Application::PATH_MODEL + "Player/Shot.mv1");
+	animationController_->Play(static_cast<int>(ANIM_TYPE::WALK));
+}
+void Enemy::InitPost(void) {}
+void Enemy::ApplyDamage(const int damage) {
+	hp_ -= damage;
+	if (hp_ < 0) hp_ = 0;
+}
+void Enemy::AddStun(const int value) {
+	stunGauge_ += value;
+	if (stunGauge_ > maxStunGauge_) stunGauge_ = maxStunGauge_;
+}
+void Enemy::OnStunned() {}
+bool Enemy::IsDead() const { return hp_ <= 0; }

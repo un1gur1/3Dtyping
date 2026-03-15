@@ -1,7 +1,5 @@
 ﻿#include "TitleScene.h"
-
 #include <DxLib.h>
-
 #include "../../Input/InputManager.h"
 #include "../SceneManager.h"
 #include "../../Object/Attack/AttackManager.h"
@@ -13,95 +11,63 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
-#include <iomanip> // for setprecision
+#include <iomanip>
 
+// =======================================================
+// 文字列・正規化ヘルパー（無名名前空間）
+// =======================================================
 namespace {
-	// =======================================================
-	// ローマ字→ひらがな変換処理（揺れ吸収・正規化の要）
-	// =======================================================
 	static bool IsLikelyRomanji(const std::string& s) {
 		if (s.empty()) return false;
 		bool hasAlpha = false;
 		for (unsigned char c : s) {
-			// 全角文字（既に日本語化されている文字）が含まれていたら変換をキャンセル
 			if (c >= 128) return false;
-
-			// 半角英字が含まれているかチェック
-			if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-				hasAlpha = true;
-			}
+			if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) hasAlpha = true;
 		}
-		// 半角英字が1つでも含まれており、かつ全角文字が無いならローマ字とみなす
 		return hasAlpha;
 	}
 
 	static std::string ConvertRomanjiToHiragana(const std::string& in) {
 		RomanjiConverter conv;
 		std::string filtered;
-
-		// 空白は無視して連結しつつ、小文字化してまとめる
 		for (unsigned char c : in) {
-			if (c != ' ') {
-				filtered += static_cast<char>(std::tolower(c));
-			}
+			if (c != ' ') filtered += static_cast<char>(std::tolower(c));
 		}
-
-		// 変換処理にすべて任せる
 		return conv.convert(filtered);
 	}
 
 	static std::string ConvertIfRomanji(const std::string& s) {
 		if (IsLikelyRomanji(s)) {
-			std::string hira = ConvertRomanjiToHiragana(s);
+			const std::string hira = ConvertRomanjiToHiragana(s);
 			if (!hira.empty()) return hira;
 		}
 		return s;
 	}
 
-	// =======================================================
-	// 例外クラッシュ対策：安全な文字列操作
-	// =======================================================
-
-	static bool IsSpaceSafe(unsigned char ch) {
+	static bool IsSpaceSafe(const unsigned char ch) {
 		return (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n');
 	}
 
 	static std::string ToLowerTrim(const std::string& s) {
 		std::string t = s;
-		t.erase(t.begin(), std::find_if(t.begin(), t.end(), [](unsigned char ch) {
-			return !IsSpaceSafe(ch);
-			}));
-		t.erase(std::find_if(t.rbegin(), t.rend(), [](unsigned char ch) {
-			return !IsSpaceSafe(ch);
-			}).base(), t.end());
+		t.erase(t.begin(), std::find_if(t.begin(), t.end(), [](unsigned char ch) { return !IsSpaceSafe(ch); }));
+		t.erase(std::find_if(t.rbegin(), t.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), t.end());
 		for (char& c : t) {
-			unsigned char uc = static_cast<unsigned char>(c);
+			const unsigned char uc = static_cast<unsigned char>(c);
 			if (uc < 128) c = static_cast<char>(std::tolower(uc));
 		}
 		return t;
 	}
 }
 
-TitleScene::TitleScene(void)
-{
-	handle_ = -1;
+// =======================================================
+// 初期化・ロード・破棄
+// =======================================================
+TitleScene::TitleScene(void) {
 	attackManager_ = new AttackManager();
-	keyInputHandle_ = -1;
-	keyInputHandleCmd_ = -1;
-	registeredDisplayRemaining_ = 0;
-	registeredDisplayMessage_.clear();
-	showCommandList_ = false;
-	commandListScroll_ = 0;
-	ignoreNextReturn_ = false;
-	prevReturnDown_ = false;
-
-	cmdHiraStr_.clear();
-	inputHiraStr_.clear();
-	combinedCommandList_.clear();
 }
 
-TitleScene::~TitleScene(void)
-{
+TitleScene::~TitleScene(void) {
 	if (keyInputHandle_ != -1) {
 		DeleteKeyInput(keyInputHandle_);
 		keyInputHandle_ = -1;
@@ -111,10 +77,10 @@ TitleScene::~TitleScene(void)
 		keyInputHandleCmd_ = -1;
 	}
 	delete attackManager_;
-	attackManager_ = nullptr; // 追加: 解放後の二次参照を防ぐ
+	attackManager_ = nullptr;
 }
-void TitleScene::Init(void)
-{
+
+void TitleScene::Init(void) {
 	keyInputHandleCmd_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
 	SetActiveKeyInput(keyInputHandleCmd_);
 	cmdInputBuf_[0] = '\0';
@@ -129,19 +95,34 @@ void TitleScene::Init(void)
 	inputHiraStr_.clear();
 }
 
-void TitleScene::Load(void)
-{
+void TitleScene::Load(void) {
 	handle_ = LoadGraph("Data/Image/Title2.png");
 	LoadCommandsFromCSV("Data/CSV/Word.csv");
 }
 
-void TitleScene::LoadEnd(void)
-{
+void TitleScene::LoadEnd(void) {
 	Init();
 }
 
-void TitleScene::LoadCommandsFromCSV(const std::string& path)
-{
+void TitleScene::Release(void) {
+	if (handle_ != -1) {
+		DeleteGraph(handle_);
+		handle_ = -1;
+	}
+	if (keyInputHandle_ != -1) {
+		DeleteKeyInput(keyInputHandle_);
+		keyInputHandle_ = -1;
+	}
+	if (keyInputHandleCmd_ != -1) {
+		DeleteKeyInput(keyInputHandleCmd_);
+		keyInputHandleCmd_ = -1;
+	}
+}
+
+// =======================================================
+// CSV読み込み・コマンド処理
+// =======================================================
+void TitleScene::LoadCommandsFromCSV(const std::string& path) {
 	commandMap_.clear();
 	commandNames_.clear();
 
@@ -157,7 +138,6 @@ void TitleScene::LoadCommandsFromCSV(const std::string& path)
 		std::istringstream iss(line);
 		std::string name, type;
 		if (std::getline(iss, name, ',') && std::getline(iss, type, ',')) {
-
 			auto safe_trim = [](std::string& s) {
 				s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !IsSpaceSafe(ch); }));
 				s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), s.end());
@@ -167,38 +147,30 @@ void TitleScene::LoadCommandsFromCSV(const std::string& path)
 
 			if (name.empty()) continue;
 
-			// ★ ここが要！CSVのコマンド名を「ひらがな」にして辞書に登録する
-			std::string lowerName = ToLowerTrim(name);
-			std::string hiraName = ConvertIfRomanji(lowerName);
+			const std::string lowerName = ToLowerTrim(name);
+			const std::string hiraName = ConvertIfRomanji(lowerName);
 
 			if (!hiraName.empty()) {
 				commandMap_[hiraName] = type;
-				commandNames_.push_back(name); // 表示用には元の文字列を保持しておく
+				commandNames_.push_back(name);
 			}
 		}
 	}
-	lastRegisteredCommand_ = "コマンドCSV読み込み完了 (ひらがな正規化済)";
+	lastRegisteredCommand_ = "コマンド読み込み完了";
 }
 
-void TitleScene::ProcessTitleCommand(const std::string& rawInput)
-{
-	// 1. 入力を安全にトリム＆小文字化
-	std::string inputTrim = ToLowerTrim(rawInput);
+void TitleScene::ProcessTitleCommand(const std::string& rawInput) {
+	const std::string inputTrim = ToLowerTrim(rawInput);
 	if (inputTrim.empty()) {
 		lastRegisteredCommand_ = "入力が空です";
 		return;
 	}
 
-	// 2. ★入力をひらがなに変換（これが判定の共通言語になる）
-	std::string inputHira = ConvertIfRomanji(inputTrim);
+	const std::string inputHira = ConvertIfRomanji(inputTrim);
+	const auto it = commandMap_.find(inputHira);
 
-	// 3. ひらがな同士で辞書検索
-	auto it = commandMap_.find(inputHira);
-
-	// 見つからなければリセット
 	if (it == commandMap_.end()) {
-		lastRegisteredCommand_ = "未登録のコマンドです。再入力してください。";
-
+		lastRegisteredCommand_ = "未登録のコマンドです";
 		if (keyInputHandleCmd_ != -1) {
 			DeleteKeyInput(keyInputHandleCmd_);
 			keyInputHandleCmd_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
@@ -209,21 +181,20 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 		return;
 	}
 
-	// 見つかった場合、CSV の type に従って処理する
 	std::string rawType = it->second;
 	rawType.erase(rawType.begin(), std::find_if(rawType.begin(), rawType.end(), [](unsigned char ch) { return !IsSpaceSafe(ch); }));
 	rawType.erase(std::find_if(rawType.rbegin(), rawType.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), rawType.end());
 
-	auto colon = rawType.find(':');
-	std::string type = (colon != std::string::npos) ? rawType.substr(0, colon) : rawType;
-	std::string typeLower = ToLowerTrim(type);
+	const auto colon = rawType.find(':');
+	const std::string type = (colon != std::string::npos) ? rawType.substr(0, colon) : rawType;
+	const std::string typeLower = ToLowerTrim(type);
 
 	static const std::vector<std::string> REGISTER_KEYS = { "register", "ultimate" };
 	static const std::vector<std::string> START_KEYS = { "start", "play", "game" };
 	static const std::vector<std::string> LIST_KEYS = { "list", "commands", "help" };
 	static const std::vector<std::string> EXIT_KEYS = { "exit", "quit", "end" };
 
-	auto isOneOf = [&](const std::string& v, const std::vector<std::string>& opts)->bool {
+	auto isOneOf = [&](const std::string& v, const std::vector<std::string>& opts) -> bool {
 		for (const auto& o : opts) if (v == o) return true;
 		return false;
 		};
@@ -240,26 +211,23 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 		SetActiveKeyInput(keyInputHandle_);
 		inputBuf_[0] = '\0';
 		inputHiraStr_.clear();
-		lastRegisteredCommand_ = std::string("必殺技登録モード開始: ") + rawInput;
+		lastRegisteredCommand_ = std::string("登録モード: ") + rawInput;
 		return;
 	}
 
 	if (isOneOf(typeLower, START_KEYS)) {
-		lastRegisteredCommand_ = std::string("ゲーム開始コマンド: ") + rawInput;
+		lastRegisteredCommand_ = std::string("開始: ") + rawInput;
 		SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
 		return;
 	}
 
 	if (isOneOf(typeLower, LIST_KEYS)) {
 		combinedCommandList_.clear();
-		for (const auto& n : commandNames_) {
-			combinedCommandList_.push_back(n);
-		}
+		for (const auto& n : commandNames_) combinedCommandList_.push_back(n);
 		if (attackManager_) {
-			for (const auto& p : attackManager_->registeredCommands_) {
-				combinedCommandList_.push_back(p.first + " (必殺)");
-			}
+			for (const auto& p : attackManager_->registeredCommands_) combinedCommandList_.push_back(p.first + " (必殺)");
 		}
+
 		if (combinedCommandList_.empty()) {
 			lastRegisteredCommand_ = "コマンド一覧は空です";
 			showCommandList_ = false;
@@ -274,18 +242,18 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput)
 	}
 
 	if (isOneOf(typeLower, EXIT_KEYS)) {
-		lastRegisteredCommand_ = "終了コマンドによる終了";
 		DxLib_End();
 		exit(0);
 		return;
 	}
 
-	lastRegisteredCommand_ = std::string("コマンド検出: ") + rawInput + " -> " + rawType;
+	lastRegisteredCommand_ = std::string("検出: ") + rawInput;
 }
 
-void TitleScene::Update(void)
-{
-	// 登録メッセージの表示時間管理
+// =======================================================
+// Update
+// =======================================================
+void TitleScene::Update(void) {
 	if (registeredDisplayRemaining_ > 0) {
 		--registeredDisplayRemaining_;
 		if (registeredDisplayRemaining_ == 0) {
@@ -293,16 +261,14 @@ void TitleScene::Update(void)
 		}
 	}
 
-	bool curReturnDown = (CheckHitKey(KEY_INPUT_RETURN) != 0);
-	bool newReturnPress = (curReturnDown && !prevReturnDown_);
+	const bool curReturnDown = (CheckHitKey(KEY_INPUT_RETURN) != 0);
+	const bool newReturnPress = (curReturnDown && !prevReturnDown_);
 
-	// --- コマンド一覧表示モード ---
+	// --- 1. コマンド一覧表示モード ---
 	if (showCommandList_) {
-		if (CheckHitKey(KEY_INPUT_UP)) {
-			if (commandListScroll_ > 0) --commandListScroll_;
-		}
+		if (CheckHitKey(KEY_INPUT_UP) && commandListScroll_ > 0) --commandListScroll_;
 		if (CheckHitKey(KEY_INPUT_DOWN)) {
-			int maxScroll = (int)combinedCommandList_.size() - kCommandListPageSize;
+			int maxScroll = static_cast<int>(combinedCommandList_.size()) - COMMAND_LIST_PAGE_SIZE;
 			if (maxScroll < 0) maxScroll = 0;
 			if (commandListScroll_ < maxScroll) ++commandListScroll_;
 		}
@@ -317,15 +283,10 @@ void TitleScene::Update(void)
 
 			if (keyInputHandleCmd_ != -1) {
 				DeleteKeyInput(keyInputHandleCmd_);
-				keyInputHandleCmd_ = -1;
 			}
 			keyInputHandleCmd_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
 			SetActiveKeyInput(keyInputHandleCmd_);
-
 			cmdInputBuf_[0] = '\0';
-			lastRegisteredCommand_.clear();
-			registeredDisplayMessage_.clear();
-			registeredDisplayRemaining_ = 0;
 
 			prevReturnDown_ = curReturnDown;
 			return;
@@ -334,7 +295,7 @@ void TitleScene::Update(void)
 		return;
 	}
 
-	// --- 必殺技コマンド登録モード ---
+	// --- 2. 必殺技コマンド登録モード ---
 	if (!isRegisteringUltimate_) {
 		if (CheckHitKey(KEY_INPUT_F1)) {
 			if (keyInputHandleCmd_ != -1) {
@@ -355,42 +316,32 @@ void TitleScene::Update(void)
 
 		if (CheckKeyInput(keyInputHandle_) == 1) {
 			DeleteKeyInput(keyInputHandle_);
-			if (keyInputHandleCmd_ == -1) {
-				keyInputHandleCmd_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
-			}
+			if (keyInputHandleCmd_ == -1) keyInputHandleCmd_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
 			SetActiveKeyInput(keyInputHandleCmd_);
 			keyInputHandle_ = -1;
 			isRegisteringUltimate_ = false;
 
-			if (attackManager_ && inputHiraStr_.size() != 0) {
-				// 登録する必殺技名もひらがなに正規化してからAttackManagerに渡す
-				std::string commandStr = ConvertIfRomanji(inputHiraStr_);
-
-				std::string commandId = attackManager_->RegisterUltimateCommand(commandStr, 5);
+			if (attackManager_ && !inputHiraStr_.empty()) {
+				const std::string commandStr = ConvertIfRomanji(inputHiraStr_);
+				const std::string commandId = attackManager_->RegisterUltimateCommand(commandStr, 5);
 				attackManager_->ReloadCommands();
 
 				if (!commandId.empty()) {
-					auto it = attackManager_->ultimateCommandDataMap_.find(commandId);
+					const auto it = attackManager_->ultimateCommandDataMap_.find(commandId);
 					if (it != attackManager_->ultimateCommandDataMap_.end()) {
-						int dmg = it->second.damage;
-						float spd = it->second.speed;
 						std::ostringstream oss;
-						oss << "登録しました: " << commandStr << " (ID:" << commandId
-							<< " DMG:" << dmg << " SPD:" << std::fixed << std::setprecision(1) << spd << ")";
+						oss << "登録成功: " << commandStr << " (DMG:" << it->second.damage << ")";
 						registeredDisplayMessage_ = oss.str();
 					}
 					else {
-						registeredDisplayMessage_ = std::string("登録しました: ") + commandStr + " (ID:" + commandId + ")";
+						registeredDisplayMessage_ = "登録成功: " + commandStr;
 					}
-					registeredDisplayRemaining_ = kRegisteredDisplayFrames;
+					registeredDisplayRemaining_ = REGISTERED_DISPLAY_FRAMES;
 					lastRegisteredCommand_ = registeredDisplayMessage_;
 				}
 				else {
-					lastRegisteredCommand_ = "登録に失敗しました";
+					lastRegisteredCommand_ = "登録失敗 (文字数不足または重複)";
 				}
-			}
-			else {
-				lastRegisteredCommand_ = "登録に失敗しました";
 			}
 
 			inputBuf_[0] = '\0';
@@ -401,9 +352,7 @@ void TitleScene::Update(void)
 
 		if (CheckHitKey(KEY_INPUT_ESCAPE)) {
 			DeleteKeyInput(keyInputHandle_);
-			if (keyInputHandleCmd_ == -1) {
-				keyInputHandleCmd_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
-			}
+			if (keyInputHandleCmd_ == -1) keyInputHandleCmd_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
 			SetActiveKeyInput(keyInputHandleCmd_);
 			keyInputHandle_ = -1;
 			isRegisteringUltimate_ = false;
@@ -415,177 +364,186 @@ void TitleScene::Update(void)
 		return;
 	}
 
-	// --- メイン入力窓（常時） ---
+	// --- 3. メイン入力窓（常時） ---
 	if (keyInputHandleCmd_ != -1) {
 		GetKeyInputString(cmdInputBuf_, keyInputHandleCmd_);
 		cmdHiraStr_ = std::string(cmdInputBuf_);
 
 		if (CheckKeyInput(keyInputHandleCmd_) == 1) {
-			// 1. 入力された文字列を退避
-			std::string raw(cmdInputBuf_);
+			const std::string raw(cmdInputBuf_);
 
-			// 2. ★自分が生きているうちに後片付けを終わらせる（例外対策）
-			if (!isRegisteringUltimate_) {
-				cmdInputBuf_[0] = '\0';
-				cmdHiraStr_.clear();
-				SetActiveKeyInput(keyInputHandleCmd_);
-			}
-			else {
-				cmdInputBuf_[0] = '\0';
-				cmdHiraStr_.clear();
-			}
+			cmdInputBuf_[0] = '\0';
+			cmdHiraStr_.clear();
+			if (!isRegisteringUltimate_) SetActiveKeyInput(keyInputHandleCmd_);
 
-			// 3. コマンド処理を実行（ここでシーンが切り替わり、自分が消滅する可能性がある）
 			ProcessTitleCommand(raw);
-
-			// 4. ★自分が消滅したかもしれないので、これ以上はメンバ変数に触らずに即リターン！
-			return;
+			return; // 遷移する可能性があるので即リターン
 		}
 	}
 
 	// 必殺技リストのスクロール操作
 	if (!isRegisteringUltimate_ && attackManager_) {
-		int listSize = static_cast<int>(attackManager_->registeredCommands_.size());
-		if (CheckHitKey(KEY_INPUT_UP)) {
-			if (scrollOffset_ > 0) scrollOffset_--;
-		}
-		if (CheckHitKey(KEY_INPUT_DOWN)) {
-			if (scrollOffset_ < listSize - 1) scrollOffset_++;
-		}
+		const int listSize = static_cast<int>(attackManager_->registeredCommands_.size());
+		if (CheckHitKey(KEY_INPUT_UP) && scrollOffset_ > 0) scrollOffset_--;
+		if (CheckHitKey(KEY_INPUT_DOWN) && scrollOffset_ < listSize - 1) scrollOffset_++;
 	}
 
-	// スペースキーによるゲーム開始
-	if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_SPACE))
-	{
+	// SPACEによるゲーム開始
+	if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_SPACE)) {
 		SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
-
-		// ★ここも例外対策！シーン遷移したら即リターンする
 		return;
 	}
 
-	// シーンが切り替わらなかった場合のみ、ここに到達して変数を更新する
 	prevReturnDown_ = curReturnDown;
 }
-void TitleScene::Draw(void)
-{
-	SetBackgroundColor(0, 0, 0);
 
-	int screenW = 0;
-	int screenH = 0;
+// =======================================================
+// Draw
+// =======================================================
+void TitleScene::Draw(void) {
+	int screenW, screenH;
 	GetDrawScreenSize(&screenW, &screenH);
 
-	const int inputBoxW = 800;
-	const int inputBoxH = 32;
-	int candidateX = screenW / 2 - inputBoxW / 2;
-	int inputX = (candidateX > 0) ? candidateX : 0;
-	int inputY = screenH / 2 - inputBoxH / 2;
-
-	DrawString(inputX, inputY - 56, "入力窓: 文言を入力してEnter（CSV参照）", GetColor(255, 255, 255));
-
-	if (keyInputHandleCmd_ != -1) {
-		DrawKeyInputString(inputX, inputY, keyInputHandleCmd_);
-		std::string displayStr = ConvertIfRomanji(std::string(cmdInputBuf_));
-		DrawFormatString(inputX, inputY + 40, GetColor(0, 255, 0), "入力: %s", displayStr.c_str());
-
-		if (!cmdHiraStr_.empty()) {
-			std::string displayHira = ConvertIfRomanji(cmdHiraStr_);
-			DrawFormatString(inputX, inputY + 64, GetColor(0, 200, 255), "ひらがな: %s", displayHira.c_str());
-		}
+	// 1. 背景描画 (Title2.png があれば画面サイズに引き伸ばして描画)
+	if (handle_ != -1) {
+		DrawExtendGraph(0, 0, screenW, screenH, handle_, TRUE);
+	}
+	else {
+		SetBackgroundColor(20, 20, 30);
 	}
 
+	// 背景を少し暗くしてUIを見やすくする
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 120);
+	DrawBox(0, 0, screenW, screenH, GetColor(0, 0, 0), TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+
+	// --- 定数定義 ---
+	const unsigned int colWhite = GetColor(255, 255, 255);
+	const unsigned int colGreen = GetColor(100, 255, 100);
+	const unsigned int colCyan = GetColor(100, 200, 255);
+	const unsigned int colYellow = GetColor(255, 255, 100);
+
+	// 2. 中央の入力エリア
+	const int inputW = 700;
+	const int inputH = 120;
+	const int inputX = (screenW - inputW) / 2;
+	const int inputY = screenH / 2 - 80;
+
+	// 入力窓の背景パネル
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 200);
+	DrawBox(inputX, inputY, inputX + inputW, inputY + inputH, GetColor(20, 20, 30), TRUE);
+	DrawBox(inputX, inputY, inputX + inputW, inputY + inputH, GetColor(100, 150, 255), FALSE); // 青枠
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+
 	if (isRegisteringUltimate_) {
-		DrawString(inputX, inputY - 56, "必殺技登録モード: 名前を入力してEnter（Escでキャンセル）", GetColor(255, 255, 255));
-		if (keyInputHandle_ != -1) {
-			DrawKeyInputString(inputX, inputY, keyInputHandle_);
-		}
+		DrawString(inputX + 20, inputY - 30, "【必殺技登録モード】 名前を入力してEnter (Escでキャンセル)", colYellow);
 
-		std::string displayRegStr = ConvertIfRomanji(std::string(inputBuf_));
-		DrawFormatString(inputX, inputY + 40, GetColor(0, 255, 0), "登録用入力: %s", displayRegStr.c_str());
+		if (keyInputHandle_ != -1) DrawKeyInputString(inputX + 20, inputY + 20, keyInputHandle_);
 
+		const std::string displayRegStr = ConvertIfRomanji(std::string(inputBuf_));
+		DrawFormatString(inputX + 20, inputY + 50, colGreen, "入力: %s", displayRegStr.c_str());
 		if (!inputHiraStr_.empty()) {
-			std::string displayRegHira = ConvertIfRomanji(inputHiraStr_);
-			DrawFormatString(inputX, inputY + 64, GetColor(0, 200, 255), "登録用(ひらがな): %s", displayRegHira.c_str());
+			const std::string displayRegHira = ConvertIfRomanji(inputHiraStr_);
+			DrawFormatString(inputX + 20, inputY + 80, colCyan, "変換: %s", displayRegHira.c_str());
 		}
 	}
 	else {
-		DrawString(inputX, inputY + 80, "F1で必殺技登録モード  SPACEでゲーム開始", GetColor(255, 255, 255));
-		const std::string& statusMsg = (!registeredDisplayMessage_.empty()) ? registeredDisplayMessage_ : lastRegisteredCommand_;
-		if (!statusMsg.empty()) {
-			DrawFormatString(inputX, inputY + 112, GetColor(255, 255, 0), "状態: %s", ConvertIfRomanji(statusMsg).c_str());
+		DrawString(inputX + 20, inputY - 30, "【コマンド入力】 かいし, いちらん, とうろく などを入力してEnter", colWhite);
+
+		if (keyInputHandleCmd_ != -1) DrawKeyInputString(inputX + 20, inputY + 20, keyInputHandleCmd_);
+
+		const std::string displayStr = ConvertIfRomanji(std::string(cmdInputBuf_));
+		DrawFormatString(inputX + 20, inputY + 50, colGreen, "入力: %s", displayStr.c_str());
+		if (!cmdHiraStr_.empty()) {
+			const std::string displayHira = ConvertIfRomanji(cmdHiraStr_);
+			DrawFormatString(inputX + 20, inputY + 80, colCyan, "変換: %s", displayHira.c_str());
 		}
 	}
 
-	if (showCommandList_) {
-		int w = 700;
-		int h = 500;
-		int x0 = screenW / 2 - w / 2;
-		int y0 = screenH / 2 - h / 2;
-		int x1 = x0 + w;
-		int y1 = y0 + h;
-		DrawBox(x0, y0, x1, y1, GetColor(20, 20, 20), TRUE);
-		DrawBox(x0 + 2, y0 + 2, x1 - 2, y1 - 2, GetColor(80, 80, 80), FALSE);
-		DrawFormatString(x0 + 12, y0 + 8, GetColor(255, 255, 255), "コマンド一覧 (Enter/Spaceで戻る) - 通常コマンド と 必殺技コマンド");
-
-		int lineH = 24;
-		int startIdx = commandListScroll_;
-		int maxDisplay = kCommandListPageSize;
-		for (int i = 0; i < maxDisplay; ++i) {
-			int idx = startIdx + i;
-			if (idx >= (int)combinedCommandList_.size()) break;
-			DrawFormatString(x0 + 16, y0 + 40 + i * lineH, GetColor(200, 200, 200), "%3d: %s", idx + 1, ConvertIfRomanji(combinedCommandList_[idx]).c_str());
-		}
-		if ((int)combinedCommandList_.size() > maxDisplay) {
-			DrawFormatString(x0 + 16, y1 - 28, GetColor(180, 180, 180), "↑↓でスクロール (%d/%d)", startIdx + 1, (int)combinedCommandList_.size());
-		}
-		return;
+	// 3. ステータス・操作説明 (入力窓の少し下)
+	const std::string statusMsg = (!registeredDisplayMessage_.empty()) ? registeredDisplayMessage_ : lastRegisteredCommand_;
+	if (!statusMsg.empty()) {
+		DrawFormatString(inputX + 20, inputY + inputH + 20, colYellow, "Status: %s", ConvertIfRomanji(statusMsg).c_str());
 	}
+	DrawString(inputX + 20, inputY + inputH + 50, "開始系の言葉を入力でゲーム開始", colWhite);
 
-	DrawString(50, 800, "このバトルタイピングは、コマンドをtypingして、回避や移動、攻撃、必殺、などを繰り出しボスを倒すのが目的です\nコマンドは、みぎ、ひだり、うえ、した、みぎにいどう、などいろいろあります\nコマンドはゲームシーンでTAB押下で確認することができます\n攻撃コマンドもこうげき、はっしゃなど複数コマンドがあります\n必殺技は各々が命名して生成することができます(6文字以上)。技によってステータスが変わります。強い必殺技やかっこいい必殺技を生成しましょう", GetColor(255, 255, 255));
-
+	// 4. 必殺技一覧 (右側パネル)
 	if (attackManager_) {
-		int candidateRightX = screenW - 700;
-		int x = (candidateRightX > 0) ? candidateRightX : 0;
-		int y = 100;
-		int lineHeight = 32;
-		int maxDisplay = 20;
-		int listSize = static_cast<int>(attackManager_->registeredCommands_.size());
-		DrawString(x, 80, "必殺技一覧", GetColor(255, 255, 0));
+		const int listW = 350;
+		const int listH = 400;
+		const int listX = screenW - listW - 40;
+		const int listY = 80;
+
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 180);
+		DrawBox(listX, listY, listX + listW, listY + listH, GetColor(30, 20, 20), TRUE);
+		DrawBox(listX, listY, listX + listW, listY + listH, GetColor(255, 100, 100), FALSE); // 赤枠
+		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+
+		DrawString(listX + 20, listY + 15, "◆ 登録済み必殺技", colYellow);
+		DrawLine(listX + 10, listY + 40, listX + listW - 10, listY + 40, colYellow);
+
+		const int listSize = static_cast<int>(attackManager_->registeredCommands_.size());
+		const int maxDisplay = 12;
+		const int lineHeight = 26;
+
 		for (int i = 0; i < maxDisplay; ++i) {
-			int idx = i + scrollOffset_;
+			const int idx = i + scrollOffset_;
 			if (idx >= listSize) break;
+
 			const auto& pair = attackManager_->registeredCommands_[idx];
-			const std::string& commandId = pair.second;
 			int damage = 0;
-			auto it = attackManager_->ultimateCommandDataMap_.find(commandId);
-			if (it != attackManager_->ultimateCommandDataMap_.end()) {
-				damage = it->second.damage;
-			}
-			DrawFormatString(x, y + i * lineHeight, GetColor(255, 255, 0),
-				"%2d: %s [DMG:%d]", idx + 1, ConvertIfRomanji(pair.first).c_str(), damage);
+			const auto it = attackManager_->ultimateCommandDataMap_.find(pair.second);
+			if (it != attackManager_->ultimateCommandDataMap_.end()) damage = it->second.damage;
+
+			DrawFormatString(listX + 20, listY + 55 + i * lineHeight, colWhite, "%2d: %s [DMG:%d]", idx + 1, ConvertIfRomanji(pair.first).c_str(), damage);
 		}
 		if (listSize > maxDisplay) {
-			DrawString(x, y + maxDisplay * lineHeight, "↑↓でスクロール", GetColor(200, 200, 200));
+			DrawString(listX + 20, listY + listH - 25, "↑↓キーでスクロール", GetColor(150, 150, 150));
+		}
+	}
+
+	// 5. ゲームの目的・説明 (画面下部パネル)
+	const int descW = screenW - 80;
+	const int descH = 120;
+	const int descX = 40;
+	const int descY = screenH - descH - 40;
+
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 150);
+	DrawBox(descX, descY, descX + descW, descY + descH, GetColor(10, 10, 10), TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+
+	DrawString(descX + 20, descY + 20, "【遊び方】", colCyan);
+	DrawString(descX + 20, descY + 50, "コマンドをタイピングして、移動・回避・攻撃を繰り出しボスを倒せ！", colWhite);
+	DrawString(descX + 20, descY + 75, "・ゲーム中に[TAB]キーでコマンド一覧を確認可能", colWhite);
+	DrawString(descX + 20, descY + 100, "とうろくと入力し自分だけのオリジナル必殺技(6文字以上推奨)を登録しよう！", colWhite);
+
+	// 6. コマンド一覧の全画面表示 (list コマンド時)
+	if (showCommandList_) {
+		const int w = 800;
+		const int h = 600;
+		const int x0 = (screenW - w) / 2;
+		const int y0 = (screenH - h) / 2;
+
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 230);
+		DrawBox(x0, y0, x0 + w, y0 + h, GetColor(10, 10, 20), TRUE);
+		DrawBox(x0, y0, x0 + w, y0 + h, colCyan, FALSE);
+		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+
+		DrawString(x0 + 20, y0 + 20, "◆ コマンド一覧 (Enter / Space で戻る)", colYellow);
+		DrawLine(x0 + 10, y0 + 50, x0 + w - 10, y0 + 50, colCyan);
+
+		const int startIdx = commandListScroll_;
+		for (int i = 0; i < COMMAND_LIST_PAGE_SIZE; ++i) {
+			const int idx = startIdx + i;
+			if (idx >= static_cast<int>(combinedCommandList_.size())) break;
+			DrawFormatString(x0 + 30, y0 + 70 + i * 24, colWhite, "%3d: %s", idx + 1, ConvertIfRomanji(combinedCommandList_[idx]).c_str());
+		}
+		if (combinedCommandList_.size() > COMMAND_LIST_PAGE_SIZE) {
+			DrawFormatString(x0 + 30, y0 + h - 30, GetColor(150, 150, 150), "↑↓でスクロール (%d/%d)", startIdx + 1, combinedCommandList_.size());
 		}
 	}
 
 	if (isPause_) {
 		UIManager::GetInstance().Draw(UIManager::UIState::Pause);
-		return;
-	}
-}
-
-void TitleScene::Release(void)
-{
-	if (handle_ != -1) {
-		DeleteGraph(handle_);
-		handle_ = -1; // 追加: 二重解放防止
-	}
-	if (keyInputHandle_ != -1) {
-		DeleteKeyInput(keyInputHandle_);
-		keyInputHandle_ = -1;
-	}
-	if (keyInputHandleCmd_ != -1) {
-		DeleteKeyInput(keyInputHandleCmd_);
-		keyInputHandleCmd_ = -1;
 	}
 }

@@ -86,56 +86,18 @@ void ThunderAttack::DrawWarning()
 
 void ThunderAttack::Execute()
 {
-    // strikePositions_ を構築するロジック:
-    // - 敵の攻撃（isPlayer_ == false）：プレイヤーの現在地を主要ターゲットにし、残りはランダム
-    // - プレイヤーの攻撃（isPlayer_ == true）：渡された targets_ の中の敵の位置のみをターゲットにする
-
     strikePositions_.clear();
     strikeGridIndices_.clear();
 
     if (!isPlayer_) {
-        // 敵が発射した落雷: プレイヤー位置 + ランダム
-        ActorBase* player = nullptr;
-        for (auto* a : targets_) {
-            if (a && a->IsPlayer()) { player = a; break; }
-        }
-        if (player) {
-            VECTOR p = player->GetPos();
-            p.y += 150.0f; // 頭上寄せ
-            strikePositions_.push_back(p);
-            strikeGridIndices_.push_back(AttackBase::CalcGridIndex(p, isPlayer_));
-        }
-        else {
-            // フォールバック: 自身（shooter_）の位置を主要ターゲットにする
-            if (shooter_) {
-                VECTOR p = shooter_->GetPos();
-                p.y += 150.0f;
-                strikePositions_.push_back(p);
-                strikeGridIndices_.push_back(AttackBase::CalcGridIndex(p, isPlayer_));
-            }
-        }
-
-        // 追加ランダムスポットを選ぶ（グリッド交点 -800..800 step 400）
-        std::mt19937 mt{ static_cast<unsigned int>(std::random_device{}()) };
-        std::uniform_int_distribution<int> dist(-2, 2); // -2,-1,0,1,2 -> *400
-
-        int attempts = 0;
-        while ((int)strikePositions_.size() < strikeCount_ && attempts < 64) {
-            int gx = dist(mt) * 400;
-            int gz = dist(mt) * 400;
-            VECTOR p = { static_cast<float>(gx), 0.0f, static_cast<float>(gz) };
-            int gidx = AttackBase::CalcGridIndex(p, isPlayer_);
-            bool dup = false;
-            for (int existing : strikeGridIndices_) if (existing == gidx) { dup = true; break; }
-            if (!dup) {
-                strikePositions_.push_back(p);
-                strikeGridIndices_.push_back(gidx);
-            }
-            attempts++;
-        }
+        // ★修正箇所：敵が発射した落雷
+        // すでにEnemy.cppの詠唱開始時にSetPos()で「ロックオン済みの座標」が渡されているので、
+        // プレイヤーを再検索したりランダム生成したりせず、渡された座標(pos_)にそのまま落とす！
+        strikePositions_.push_back(pos_);
+        strikeGridIndices_.push_back(AttackBase::CalcGridIndex(pos_, isPlayer_));
     }
     else {
-        // プレイヤーが発射した落雷: targets_ の敵の位置のみ
+        // プレイヤーが発射した落雷: （ここは元のまま、敵の頭上を自動サーチ）
         for (auto* a : targets_) {
             if (!a) continue;
             if (!a->IsEnemy()) continue;
@@ -164,9 +126,9 @@ void ThunderAttack::Execute()
         UIManager::GetInstance().SetGridState(gridIdx, Grid::GridState::Attack, isPlayer_);
 
         ThunderBullet bullet;
-        // 上空から落とす（高さは少しずらす）
+        // 上空から落とす
         bullet.pos = target;
-        bullet.pos.y = 300.0f + static_cast<float>(i * 40);
+        bullet.pos.y = 300.0f; // Enemy側で高さをズラしているのでここは固定でOK
         bullet.vel = { 0.0f, -600.0f, 0.0f }; // 下方向速度
         bullet.gridIndex = gridIdx;
         bullet.isActive = true;
