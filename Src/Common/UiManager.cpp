@@ -118,6 +118,17 @@ void UIManager::SetPauseCursor(int cursor) {
     pauseCursor_ = cursor;
 }
 
+// 新規: プレイヤースタミナ設定
+void UIManager::SetPlayerStamina(int stamina, int maxStamina) {
+    playerStamina_ = stamina;
+    playerMaxStamina_ = maxStamina;
+}
+
+// 新規: 敵の詠唱文字列設定
+void UIManager::SetEnemyCasting(const std::string& casting) {
+    enemyCasting_ = casting;
+}
+
 // 毎フレーム呼び出し
 void UIManager::Update(UIState currentState) {
     state_ = currentState;
@@ -159,7 +170,7 @@ void UIManager::Draw(UIState currentState) {
      //    int x = static_cast<int>(grids[debugGridIndex_].pos_.x);
      //    int y = static_cast<int>(grids[debugGridIndex_].pos_.y);
      //    DrawFormatString(50, 50, 0xffffff, "Grid[%d] Pos: (%d, %d)", debugGridIndex_, x, y);
-     //}
+     // }
     DrawCommonHUD();
 
     switch (currentState) {
@@ -183,16 +194,31 @@ void UIManager::Draw(UIState currentState) {
 
 // HPバーや共通HUD
 void UIManager::DrawCommonHUD() {
-    // プレイヤーHPバー
-    DrawHpBar(50, 30, 300, 20, playerHp_, playerMaxHp_, GetColor(0, 128, 255), "PLAYER HP");
+    // --- 敵HPバー：画面最上部、細長く中央寄せ（目立つが邪魔にならない） ---
+    int availableW = SCREEN_WIDTH - 200;
+    if (availableW < 0) availableW = 0; // 念のため負の幅を防止
+    int enemyBarW = (availableW < 1200) ? availableW : 1200;
+    int enemyBarX = (SCREEN_WIDTH - enemyBarW) / 2;
+    int enemyBarY = 8;
+    DrawHpBar(enemyBarX, enemyBarY, enemyBarW, 12, enemyHp_, enemyMaxHp_, GetColor(255, 64, 64), "BOSS");
 
-    // 敵HPバー
-    DrawHpBar(50, 70, 300, 20, enemyHp_, enemyMaxHp_, GetColor(255, 64, 64), "ENEMY HP");
-
-    // 敵の名前（小さめに）
+    // 敵の名前（バーの右側に小さめに表示）
     if (!enemyName_.empty()) {
-        DrawFormatString(370, 70, 0xFFFFFF, "Name: %s", enemyName_.c_str());
+        DrawFormatString(enemyBarX + enemyBarW + 10, enemyBarY - 2, 0xFFFFFF, "%s", enemyName_.c_str());
     }
+
+    // --- プレイヤーHP・スタミナ：画面左下に配置（チラ見で確認できる） ---
+    int leftX = 20;
+    int hpY = SCREEN_HEIGHT - 80;
+    DrawHpBar(leftX, hpY, 240, 18, playerHp_, playerMaxHp_, GetColor(0, 128, 255), "PLAYER HP");
+
+    // スタミナバー（HPの下に小さく）
+    int stamY = hpY + 24;
+    float stamRate = (playerMaxStamina_ > 0) ? static_cast<float>(playerStamina_) / playerMaxStamina_ : 0.0f;
+    int stamW = static_cast<int>(220 * stamRate);
+    DrawBox(leftX, stamY, leftX + 220, stamY + 12, GetColor(40, 40, 40), TRUE);
+    DrawBox(leftX, stamY, leftX + stamW, stamY + 12, GetColor(200, 200, 50), TRUE);
+    DrawFormatString(leftX + 230, stamY - 2, 0xFFFFFF, "STAMINA: %d/%d", playerStamina_, playerMaxStamina_);
 }
 // UiManager.cpp
 
@@ -247,6 +273,20 @@ void UIManager::DrawTypingArea() {
         std::string inorm = ConvertIfRomanji(ToLowerTrim(inputWord_));
         DrawFormatString(INPUT_TEXT_X, HIRA_TEXT_Y + 32, 0xFFFFAA,
             "目標: %s  入力(正規化): %s", tnorm.c_str(), inorm.c_str());
+    }
+
+    // --- 敵の詠唱窓（入力窓のすぐ下） ---
+    if (!enemyCasting_.empty()) {
+        int castX = INPUT_TEXT_X;
+        int castY = by + bh + 8; // 入力ボックスのすぐ下
+        int castW = bw;
+        int castH = 48;
+        // 赤い背景で「危険」を直感的に表示
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, 220);
+        DrawBox(castX, castY, castX + castW, castY + castH, GetColor(60, 0, 0), TRUE);
+        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+        DrawFormatString(castX + 8, castY + 8, GetColor(255, 80, 80),
+            "ENEMY CAST: %s", enemyCasting_.c_str());
     }
 
     SetFontSize(oldFontSize);
@@ -333,7 +373,7 @@ void UIManager::DrawHpBar(int x, int y, int width, int height, int hp, int maxHp
     int barW = static_cast<int>(width * rate);
     DrawBox(x, y, x + width, y + height, GetColor(80, 80, 80), TRUE); // 背景
     DrawBox(x, y, x + barW, y + height, color, TRUE); // HP
-    DrawFormatString(x, y - 20, 0xFFFFFF, "%s: %d / %d", label, hp, maxHp);
+    DrawFormatString(x, y - 14, 0xFFFFFF, "%s: %d / %d", label, hp, maxHp);
 }
 void UIManager::SetNormalCommandList(const std::vector<std::string>& list) {
     normalCommandList_ = list;

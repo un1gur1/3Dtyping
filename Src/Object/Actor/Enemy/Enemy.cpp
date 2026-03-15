@@ -11,6 +11,7 @@
 #include "../../Attack/UltimateAttack/UltimateAttack.h"
 #include "../Player/Player.h"
 #include "../../Attack/Magic/ThunderAttack.h"
+#include "../../../Common/UiManager.h"
 
 // =======================================================
 // エネミー専用のヘルパー関数（文字数カウント用）
@@ -28,6 +29,47 @@ namespace {
 		}
 		return count;
 	}
+
+	// 先頭から n 文字分の UTF-8 部分文字列を返す（n は「文字数」単位）
+	static std::string Utf8Substring(const std::string& s, size_t n) {
+		if (n == 0 || s.empty()) return std::string();
+
+		std::string out;
+		out.reserve(s.size());
+		size_t chars = 0;
+		for (size_t i = 0; i < s.size(); ) {
+			unsigned char c = static_cast<unsigned char>(s[i]);
+			size_t len = 1;
+			if (c < 0x80) len = 1;
+			else if ((c & 0xE0) == 0xC0) len = 2;
+			else if ((c & 0xF0) == 0xE0) len = 3;
+			else if ((c & 0xF8) == 0xF0) len = 4;
+			// 範囲チェック
+			if (i + len > s.size()) len = s.size() - i;
+			if (chars >= n) break;
+			out.append(s.data() + i, len);
+			i += len;
+			chars++;
+		}
+		return out;
+	}
+}
+
+// コンボセット初期化用ヘルパー（ローカル）
+// （省略せず既存の内容を維持）
+namespace {
+	// シンプルなコンボを作成: 低HPでは重め・必殺を含むセットにする
+	static std::vector<std::vector<Enemy::EnemyAction>> CreateDefaultCombos() {
+		using A = Enemy::EnemyAction;
+		std::vector<std::vector<A>> sets;
+		// 高HP：安全に遠距離中心の軽いコンボ
+		sets.push_back({ A::ATTACK_RANGE, A::ATTACK_RANGE, A::ATTACK_RANGE });
+		// 中HP：遠距離＋近距離を混ぜる
+		sets.push_back({ A::ATTACK_RANGE, A::THUNDER, A::ATTACK_RANGE });
+		// 低HP：激しいコンボ、最後にULTIMATEへ繋げる可能性あり
+		sets.push_back({ A::THUNDER, A::ATTACK_NEAR, A::THUNDER, A::ULTIMATE });
+		return sets;
+	}
 }
 
 Enemy::Enemy(Player* player)
@@ -35,6 +77,13 @@ Enemy::Enemy(Player* player)
 	player_ = player;
 	attackManager_ = nullptr;
 	state_ = ActorState::IDLE;
+
+	// コンボセット初期化
+	comboSets_ = CreateDefaultCombos();
+	activeComboIndex_ = -1;
+	comboStep_ = 0;
+	comboExecuting_ = false;
+	comboActionInProgress_ = false;
 }
 
 Enemy::~Enemy(void)
@@ -44,6 +93,60 @@ Enemy::~Enemy(void)
 void Enemy::Update(void)
 {
 	ActorBase::Update();
+
+	// HP比率
+	float hpRatio = (maxHp_ > 0) ? static_cast<float>(hp_) / static_cast<float>(maxHp_) : 1.0f;
+
+	// コンボ実行中の進行管理
+	if (comboExecuting_) {
+		// 現在のアクションが未開始なら開始する
+		if (!comboActionInProgress_) {
+			if (activeComboIndex_ >= 0 && activeComboIndex_ < static_cast<int>(comboSets_.size())
+				&& comboStep_ < static_cast<int>(comboSets_[activeComboIndex_].size())) {
+				EnemyAction action = comboSets_[activeComboIndex_][comboStep_];
+				// 次のアクションに応じて ActorState を設定（既存のステートで処理）
+				switch (action) {
+				case EnemyAction::ATTACK_RANGE:
+					ChangeState(ActorState::ATTACK_RANGE);
+					break;
+				case EnemyAction::ATTACK_NEAR:
+				case EnemyAction::THUNDER:
+					// ATTACK_NEAR のコードで落雷や近接を扱うようにする
+					ChangeState(ActorState::ATTACK_NEAR);
+					break;
+				case EnemyAction::ULTIMATE:
+					ChangeState(ActorState::ULTIMATE);
+					break;
+				default:
+					ChangeState(ActorState::IDLE);
+					break;
+				}
+				// アクション開始をマーク（各ステート内部で attackRegistered_ が使われる）
+				comboActionInProgress_ = true;
+			}
+			else {
+				// コンボ終了
+				comboExecuting_ = false;
+				activeComboIndex_ = -1;
+				comboStep_ = 0;
+				comboActionInProgress_ = false;
+				ChangeState(ActorState::IDLE);
+			}
+		}
+		else {
+			// アクション実行中 -> 既存ステート処理により攻撃が生成される
+			// アクション完了判定: State が IDLE に戻り、attackRegistered_ が false になっているとき
+			if (state_ == ActorState::IDLE && !comboActionInProgress_) {
+				// （二重判定防止: ここ何もしない）
+			}
+			if (state_ == ActorState::IDLE && comboActionInProgress_ && !attackRegistered_) {
+				// 現在のアクションが完了したと判断して次へ進める
+				comboActionInProgress_ = false;
+				comboStep_++;
+				// コンボ終了チェックは次ループで行う
+			}
+		}
+	}
 
 	switch (state_) {
 	case ActorState::IDLE:
@@ -56,26 +159,37 @@ void Enemy::Update(void)
 			// HP閾値でULTIMATE強制遷移
 			if (hp_ < maxHp_ * 0.5f) {
 				ChangeState(ActorState::ULTIMATE);
-
 				break;
 			}
-			// 確率抽選
 
-			// 乱数エンジンと分布を static で用意
-			static std::mt19937 engine{ std::random_device{}() };
-			static std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-
-			// 確率抽選
-			float r = dist(engine);
-			if (r < 0.3f) {
-				ChangeState(ActorState::ATTACK_NEAR);
-
-			}
-			else if (r < 0.8f) {
-				ChangeState(ActorState::ATTACK_RANGE);
+			// コンボ実行の開始: HP状態に応じたコンボを選択して順に実行する
+			if (!comboExecuting_) {
+				// HP状態ごとにコンボ選択
+				int comboChoice = 0;
+				if (hpRatio >= HP_HIGH) {
+					// 高HP帯: 0番セット
+					comboChoice = 0;
+				}
+				else if (hpRatio >= HP_LOW) {
+					// 中HP帯: 1番セット
+					comboChoice = 1;
+				}
+				else {
+					// 低HP帯: 2番セット（強力）
+					comboChoice = 2;
+				}
+				// ランダム性を少し追加してバリエーションを出す
+				if (rand() % 100 < 20) {
+					// 20%で別セットを使う（安全策）
+					comboChoice = (comboChoice + 1) % static_cast<int>(comboSets_.size());
+				}
+				activeComboIndex_ = comboChoice;
+				comboStep_ = 0;
+				comboExecuting_ = true;
+				comboActionInProgress_ = false; // 次ループで最初のアクションを開始する
 			}
 			else {
-
+				// 既にコンボ実行中なら念のため IDLE を維持
 			}
 		}
 		break;
@@ -179,6 +293,8 @@ void Enemy::Update(void)
 				std::string commandStr = pair.first;
 				std::string commandId = pair.second;
 				StartTypingUltimate(commandStr);
+				// UIに敵の詠唱を通知
+				UIManager::GetInstance().SetEnemyCasting(commandStr);
 			}
 			attackRegistered_ = true;
 			isAttacking_ = true;
@@ -187,6 +303,11 @@ void Enemy::Update(void)
 		if (attackRegistered_ && typingCommand_.empty()) {
 			ChangeState(ActorState::IDLE);
 			isAttacking_ = false;
+			// コンボ実行中ならULTアクションとして扱い、終了させる
+			if (comboExecuting_) {
+				comboActionInProgress_ = false;
+				comboStep_++;
+			}
 		}
 		break;
 
@@ -202,37 +323,6 @@ void Enemy::Update(void)
 		UpdateTypingUltimate(1.0f / 60.0f); // deltaTimeはフレーム時間
 	}
 
-	//// 索敵
-	//Search();
-	//if (isNoticeView_)
-	//{
-	//	// プレイヤーの座標取得
-	//	VECTOR playerPos = player_->GetPos();
-
-	//	// 敵からプレイヤーへのベクトル
-	//	VECTOR toPlayer = VSub(playerPos, pos_);
-
-	//	// XZ平面の距離
-	//	float dist = sqrtf(toPlayer.x * toPlayer.x + toPlayer.z * toPlayer.z);
-	//	if (dist > 0.0f)
-	//	{
-	//		// 方向ベクトル正規化
-	//		VECTOR dir = { toPlayer.x / dist, 0.0f, toPlayer.z / dist };
-
-	//		// 速度
-	//		const float ENEMY_SPEED = 2.0f;
-
-	//		// 移動
-	//		pos_.x += dir.x * ENEMY_SPEED;
-	//		pos_.z += dir.z * ENEMY_SPEED;
-
-	//		// プレイヤー方向に回転
-	//		float targetAngleY = atan2f(dir.x, dir.z);
-	//		angle_.y = AsoUtility::LerpAngle(angle_.y, targetAngleY, 0.2f);
-
-	//	}
-	//}
-	// 
 	// モデルの位置を反映
 	MV1SetPosition(modelId_, pos_);
 	// 歩くアニメーション再生
@@ -283,7 +373,28 @@ void Enemy::Draw(void)
 
 	//DrawFormatString(700, 10, 0xFFFFFF, "HP: %d / %d", GetHp(), GetMaxHp());
 
+	// タイピング進捗のデバッグ表示（追加）
+	if (!typingCommand_.empty()) {
+		// 合計文字数（UTF-8文字数）
+		size_t totalChars = GetUtf8CharCount(typingCommand_);
+		// 現在の入力済み文字数（経過時間比率から算出）
+		float ratio = 0.0f;
+		if (typingWait_ > 0.0f) {
+			ratio = typingElapsed_ / typingWait_;
+			if (ratio < 0.0f) ratio = 0.0f;
+			if (ratio > 1.0f) ratio = 1.0f;
+		}
+		size_t typedChars = static_cast<size_t>(ratio * static_cast<float>(totalChars));
+		if (typedChars > totalChars) typedChars = totalChars;
 
+		// 先頭 typedChars 文字を切り出す
+		std::string typedStr = Utf8Substring(typingCommand_, typedChars);
+
+		// フルコマンドを表示（オレンジ）
+		DrawFormatString(700, 50, 0xFFAA00, "UltimateCmd: %s", typingCommand_.c_str());
+		// 入力済み部分を別色で表示（緑）
+		DrawFormatString(700, 70, 0x00FF00, "Typed: %s (%zu/%zu)", typedStr.c_str(), typedChars, totalChars);
+	}
 
 	//// --- 攻撃ステートのデバッグ表示 ---
 	//const char* stateStr = "";
@@ -302,8 +413,10 @@ void Enemy::Draw(void)
 	//	DrawFormatString(700, 50, 0xFFAA00, "UltimateCmd: %s", typingCommand_.c_str());
 	//}
 
+	ActorBase::Draw();
 }
 
+// （以下の関数群は変更なし）
 void Enemy::InitLoad(void)
 {
 	// モデルの読み込み
@@ -423,6 +536,9 @@ void Enemy::StartTypingUltimate(const std::string& command) {
 	typingCommand_ = command;
 	typingElapsed_ = 0.0f;
 
+	// UIに詠唱を通知
+	UIManager::GetInstance().SetEnemyCasting(command);
+
 	// ★ ここが修正のキモ！ バイト数ではなく実際の文字数を数える
 	size_t charCount = GetUtf8CharCount(command);
 
@@ -476,6 +592,8 @@ void Enemy::UpdateTypingUltimate(float deltaTime) {
 				}
 			}
 			typingCommand_.clear();
+			// UIに詠唱終了を通知（空にする）
+			UIManager::GetInstance().SetEnemyCasting("");
 		}
 	}
 }
