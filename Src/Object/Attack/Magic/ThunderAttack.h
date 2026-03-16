@@ -36,6 +36,10 @@ private:
     bool bulletFired_ = false;
     float bulletLifeTime_ = 1.0f; // 弾の寿命
 
+    // 静的キャッシュ：エフェクトリソースハンドル
+    int s_thunderEffectHandle = -1;
+    bool s_thunderEffectTried = false;
+
     // 生成する落雷スポット（予兆時に決定して Execute と共有）
     std::vector<VECTOR> strikePositions_;
     std::vector<int> strikeGridIndices_;

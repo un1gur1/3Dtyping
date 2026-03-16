@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <random>
 
 class AttackManager;
 
@@ -32,8 +33,21 @@ private:
 private:
 	// --- システム・リソース ---
 	AttackManager* attackManager_ = nullptr;
-	int handle_ = -1; // 背景画像ハンドル
-	int titleHandle_ = -1; // タイトルロゴハンドル
+	int handle_ = -1;        // 背景画像ハンドル
+	int titleHandle_ = -1;   // タイトルロゴハンドル
+
+	// Effekseer 関連（タイトルシーンでのみ扱う簡易ハンドル）
+	int efkResourceHandle_ = -1; // LoadEffekseerEffect の戻り（リソース）
+	// 個別に再生するハンドルを管理して複数同時再生（花火）
+	std::vector<int> efkPlayingHandles_;
+	bool effekseerInitialized_ = false;
+
+	// 花火 (ランダム再生) 管理
+	float efkSpawnTimer_ = 0.0f;         // 次のスポーンまでのタイマー
+	float efkSpawnInterval_ = 0.6f;      // 基本間隔（秒）
+	int efkMaxSimultaneous_ = 6;         // 同時再生上限
+	std::mt19937 efkRng_;                // ランダムジェネレータ
+
 	// --- 状態フラグ ---
 	bool isRegisteringUltimate_ = false;
 	PauseMenuState pauseState_ = PauseMenuState::None;

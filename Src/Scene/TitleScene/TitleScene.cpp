@@ -1,6 +1,7 @@
-﻿#include "TitleScene.h"
+﻿
+#include "TitleScene.h"
 #include <DxLib.h>
-#include"EffekseerForDXLib.h"
+#include "EffekseerForDXLib.h"
 #include "../../Input/InputManager.h"
 #include "../SceneManager.h"
 #include "../../Object/Attack/AttackManager.h"
@@ -13,11 +14,13 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <random> // 追加
 
 // =======================================================
 // 文字列・正規化ヘルパー（無名名前空間）
 // =======================================================
 namespace {
+	// ... 既存ヘルパーは省略せずそのまま ...
 	static bool IsLikelyRomanji(const std::string& s) {
 		if (s.empty()) return false;
 		bool hasAlpha = false;
@@ -55,7 +58,7 @@ namespace {
 		t.erase(std::find_if(t.rbegin(), t.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), t.end());
 		for (char& c : t) {
 			const unsigned char uc = static_cast<unsigned char>(c);
-			if (uc < 128) c = static_cast<char>(std::tolower(uc));
+			if (uc < 128) c = static_cast<char>(std::tolower(c));
 		}
 		return t;
 	}
@@ -66,19 +69,18 @@ namespace {
 // =======================================================
 TitleScene::TitleScene(void) {
 	attackManager_ = new AttackManager();
+	// RNG の初期化はコンストラクタでも可（安全のため空シード）
+	efkRng_.seed(static_cast<unsigned int>(std::random_device{}()));
 }
 
 TitleScene::~TitleScene(void) {
-	if (keyInputHandle_ != -1) {
-		DeleteKeyInput(keyInputHandle_);
-		keyInputHandle_ = -1;
+	// Release() は Scene 側で呼ばれる前提だが念のため
+	Release();
+
+	if (attackManager_) {
+		delete attackManager_;
+		attackManager_ = nullptr;
 	}
-	if (keyInputHandleCmd_ != -1) {
-		DeleteKeyInput(keyInputHandleCmd_);
-		keyInputHandleCmd_ = -1;
-	}
-	delete attackManager_;
-	attackManager_ = nullptr;
 }
 
 void TitleScene::Init(void) {
@@ -94,12 +96,56 @@ void TitleScene::Init(void) {
 	prevReturnDown_ = false;
 	cmdHiraStr_.clear();
 	inputHiraStr_.clear();
+
+	// Effekseer の表示サイズ同期（ウィンドウサイズが変わる可能性があるため here でも呼べる）
+	int sw = 0, sh = 0;
+	GetDrawScreenSize(&sw, &sh);
+	if (effekseerInitialized_) {
+		Effekseer_Set2DSetting(sw, sh);
+	}
+
+	// 花火初期値
+	efkSpawnTimer_ = 0.0f;
+	efkSpawnInterval_ = 0.5f; // 基本間隔（秒）
+	efkMaxSimultaneous_ = 6;
 }
 
 void TitleScene::Load(void) {
 	handle_ = LoadGraph("Data/Image/Title2.png");
 	titleHandle_ = LoadGraph("Data/Image/title.png");
 	LoadCommandsFromCSV("Data/CSV/Word.csv");
+
+	// --- Effekseer 初期化 ---
+	if (!effekseerInitialized_) {
+		// 適切なパーティクル上限を指定
+		if (Effekseer_Init(2000) == 0) {
+			effekseerInitialized_ = true;
+		}
+	}
+
+	// ウィンドウサイズを Effekseer に通知
+	int sw = 0, sh = 0;
+	GetDrawScreenSize(&sw, &sh);
+	if (effekseerInitialized_) {
+		Effekseer_Set2DSetting(sw, sh);
+	}
+
+	// efk ファイルの読み込み（相対パス）
+	const char* efkPath = "Data/Image/efe/efe.efk";
+	if (effekseerInitialized_) {
+		efkResourceHandle_ = LoadEffekseerEffect(efkPath, 1.0f);
+		if (efkResourceHandle_ != -1) {
+			// 1個目は中央上に固定で再生（見本）
+			int sw2 = 0, sh2 = 0;
+			GetDrawScreenSize(&sw2, &sh2);
+			int h = PlayEffekseer2DEffect(efkResourceHandle_);
+			if (h != -1) {
+				SetPosPlayingEffekseer2DEffect(h, static_cast<float>(sw2) * 0.5f, static_cast<float>(sh2) * 0.25f, 0.0f);
+				SetScalePlayingEffekseer2DEffect(h, 3.0f, 3.0f, 3.0f);
+				efkPlayingHandles_.push_back(h);
+			}
+		}
+	}
 }
 
 void TitleScene::LoadEnd(void) {
@@ -107,9 +153,14 @@ void TitleScene::LoadEnd(void) {
 }
 
 void TitleScene::Release(void) {
+	// 画像リソースとキー入力ハンドルの解放
 	if (handle_ != -1) {
 		DeleteGraph(handle_);
 		handle_ = -1;
+	}
+	if (titleHandle_ != -1) {
+		DeleteGraph(titleHandle_);
+		titleHandle_ = -1;
 	}
 	if (keyInputHandle_ != -1) {
 		DeleteKeyInput(keyInputHandle_);
@@ -119,9 +170,25 @@ void TitleScene::Release(void) {
 		DeleteKeyInput(keyInputHandleCmd_);
 		keyInputHandleCmd_ = -1;
 	}
-	if (titleHandle_ != -1) {
-		DeleteGraph(titleHandle_);
-		titleHandle_ = -1;
+
+	
+	if (!efkPlayingHandles_.empty()) {
+		std::vector<int> alive;
+		alive.reserve(efkPlayingHandles_.size());
+
+		for (int ph : efkPlayingHandles_) {
+			// 再生中(TRUE = 1)ならリストに残す
+			if (IsEffekseer2DEffectPlaying(ph) == TRUE) {
+				alive.push_back(ph);
+			}
+			// 再生終了(FALSE = 0)なら何もしない（自然消滅させる）
+		}
+
+		efkPlayingHandles_.swap(alive);
+	}
+	if (effekseerInitialized_) {
+		Effkseer_End();
+		effekseerInitialized_ = false;
 	}
 }
 
@@ -129,6 +196,7 @@ void TitleScene::Release(void) {
 // CSV読み込み・コマンド処理
 // =======================================================
 void TitleScene::LoadCommandsFromCSV(const std::string& path) {
+	// 既存実装そのまま
 	commandMap_.clear();
 	commandNames_.clear();
 
@@ -145,8 +213,8 @@ void TitleScene::LoadCommandsFromCSV(const std::string& path) {
 		std::string name, type;
 		if (std::getline(iss, name, ',') && std::getline(iss, type, ',')) {
 			auto safe_trim = [](std::string& s) {
-				s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !IsSpaceSafe(ch); }));
-				s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), s.end());
+				s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !(ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'); }));
+				s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !(ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'); }).base(), s.end());
 				};
 			safe_trim(name);
 			safe_trim(type);
@@ -166,6 +234,7 @@ void TitleScene::LoadCommandsFromCSV(const std::string& path) {
 }
 
 void TitleScene::ProcessTitleCommand(const std::string& rawInput) {
+	// 既存実装そのまま
 	const std::string inputTrim = ToLowerTrim(rawInput);
 	if (inputTrim.empty()) {
 		lastRegisteredCommand_ = "入力が空です";
@@ -188,8 +257,8 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput) {
 	}
 
 	std::string rawType = it->second;
-	rawType.erase(rawType.begin(), std::find_if(rawType.begin(), rawType.end(), [](unsigned char ch) { return !IsSpaceSafe(ch); }));
-	rawType.erase(std::find_if(rawType.rbegin(), rawType.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), rawType.end());
+	rawType.erase(rawType.begin(), std::find_if(rawType.begin(), rawType.end(), [](unsigned char ch) { return !(ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'); }));
+	rawType.erase(std::find_if(rawType.rbegin(), rawType.rend(), [](unsigned char ch) { return !(ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'); }).base(), rawType.end());
 
 	const auto colon = rawType.find(':');
 	const std::string type = (colon != std::string::npos) ? rawType.substr(0, colon) : rawType;
@@ -260,6 +329,70 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput) {
 // Update
 // =======================================================
 void TitleScene::Update(void) {
+	// Effekseer 更新（2D）
+	if (effekseerInitialized_) {
+		UpdateEffekseer2D();
+	}
+
+	// ----- 花火（ランダムスポーン）処理 -----
+	// 1/60 フレーム想定
+	const float frameDt = 1.0f / 60.0f;
+
+	// 再生終了したハンドルを掃除
+	if (!efkPlayingHandles_.empty()) {
+		std::vector<int> alive;
+		alive.reserve(efkPlayingHandles_.size());
+		for (int ph : efkPlayingHandles_) {
+			// IsEffekseer2DEffectPlaying: 0 -> 再生中, -1 -> 再生終了/無効
+			int playing = IsEffekseer2DEffectPlaying(ph);
+			if (playing == 0) {
+				alive.push_back(ph);
+			}
+			else {
+				// 明示的に停止しておく（必要なら）
+				StopEffekseer2DEffect(ph);
+			}
+		}
+		efkPlayingHandles_.swap(alive);
+	}
+
+	// スポーンタイマー更新
+	efkSpawnTimer_ -= frameDt;
+	if (efkSpawnTimer_ <= 0.0f) {
+		// 同時再生上限を越えていなければスポーン
+		if (effekseerInitialized_ && efkResourceHandle_ != -1 && static_cast<int>(efkPlayingHandles_.size()) < efkMaxSimultaneous_) {
+			int sw = 0, sh = 0;
+			GetDrawScreenSize(&sw, &sh);
+			if (sw > 0 && sh > 0) {
+				// ランダム位置（画面幅全体、高さは上部〜中段に限定して花火っぽく）
+				std::uniform_real_distribution<float> dx(0.1f * sw, 0.9f * sw);
+				std::uniform_real_distribution<float> dy(0.05f * sh, 0.5f * sh);
+				std::uniform_real_distribution<float> dscale(1.0f, 3.5f);
+				std::uniform_int_distribution<int> drgb(120, 255);
+
+				float px = dx(efkRng_);
+				float py = dy(efkRng_);
+				float scale = dscale(efkRng_);
+				int r = drgb(efkRng_);
+				int g = drgb(efkRng_);
+				int b = drgb(efkRng_);
+
+				int ph = PlayEffekseer2DEffect(efkResourceHandle_);
+				if (ph != -1) {
+					SetPosPlayingEffekseer2DEffect(ph, px, py, 0.0f);
+					SetScalePlayingEffekseer2DEffect(ph, scale, scale, scale);
+					// 色をランダムに（透過255）
+					SetColorPlayingEffekseer2DEffect(ph, r, g, b, 255);
+					efkPlayingHandles_.push_back(ph);
+				}
+			}
+		}
+		// 次回スポーンまでの間隔をランダム化して少しばらつかせる
+		std::uniform_real_distribution<float> jitter(0.6f * efkSpawnInterval_, 1.4f * efkSpawnInterval_);
+		efkSpawnTimer_ = jitter(efkRng_);
+	}
+	// ----- 花火処理 終了 -----
+
 	if (registeredDisplayRemaining_ > 0) {
 		--registeredDisplayRemaining_;
 		if (registeredDisplayRemaining_ == 0) {
@@ -423,16 +556,13 @@ void TitleScene::Draw(void) {
 	DrawBox(0, 0, screenW, screenH, GetColor(0, 0, 0), TRUE);
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 
-
 	// タイトルロゴ描画 (Title.png があれば中央上部に表示)
 	if (titleHandle_ != -1) {
-		// 画像の実サイズを取得して、DrawRotaGraph の中心座標(x,y)で中央上部に描画する
 		int gw = 0, gh = 0;
 		GetGraphSize(titleHandle_, &gw, &gh);
 		const float scale = 0.3f; // 必要なら調整
 		const int logoCenterX = screenW / 2; // 横は画面中央
 		const int topMargin = 20; // 上からの余白
-		// DrawRotaGraph は座標を画像の中心として扱うため、Yは余白＋(高さの半分)
 		const int logoCenterY = topMargin + static_cast<int>(gh * scale * 0.5f);
 		DrawRotaGraph(logoCenterX, logoCenterY, scale, 0.0, titleHandle_, TRUE);
 	}
@@ -561,6 +691,11 @@ void TitleScene::Draw(void) {
 		if (combinedCommandList_.size() > COMMAND_LIST_PAGE_SIZE) {
 			DrawFormatString(x0 + 30, y0 + h - 30, GetColor(150, 150, 150), "↑↓でスクロール (%d/%d)", startIdx + 1, combinedCommandList_.size());
 		}
+	}
+
+	// Effekseer 全体描画（2D）
+	if (effekseerInitialized_) {
+		DrawEffekseer2D();
 	}
 
 	if (isPause_) {

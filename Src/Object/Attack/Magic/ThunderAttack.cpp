@@ -3,9 +3,14 @@
 #include <DxLib.h>
 #include <random>
 #include <algorithm>
+#include <cstdio> // std::fprintf用
+#include "EffekseerForDXLib.h"
 #include "../../Actor/Player/Player.h"
 #include "../../Actor/ActorBase.h"
 #include "../../../Application.h"
+#include "../../../Common/UiManager.h"
+
+
 
 ThunderAttack::ThunderAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
     : AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter)
@@ -16,10 +21,10 @@ void ThunderAttack::Update()
 {
     if (!isAlive_) return;
 
-    // フレーム経過（用途が無くなった warning 用だが残しておく）
+    // フレーム経過
     elapsed_ += 1.0f / 60.0f;
 
-    // ワーニング無しのため、生成されたら即 Execute
+    // 生成されたら即 Execute
     if (!executed_) {
         Execute();
         executed_ = true;
@@ -33,7 +38,8 @@ void ThunderAttack::Update()
 
         // 着地判定（地面 y<=0 と仮定）
         if (bullet.isActive && bullet.pos.y <= 0.0f) {
-            // 着弾時のダメージ判定（targets_ に対して判定）
+
+            // 着弾時のダメージ判定
             for (auto* tgt : targets_) {
                 if (!tgt || !tgt->GetisCollision()) continue;
                 const VECTOR tpos = tgt->GetPos();
@@ -47,7 +53,44 @@ void ThunderAttack::Update()
                     Application::GetInstance()->ShakeScreen(5, 30, true, true);
                 }
             }
-            // 着弾エフェクトを少し残して非アクティブ化
+
+            // ==========================================================
+            // ★ 着弾エフェクトを再生（Effekseer 3D）
+            // ==========================================================
+            if (!s_thunderEffectTried) {
+                s_thunderEffectTried = true;
+
+                // ★ 3Dマネージャーが存在するか確認
+                if (GetEffekseer3DManager() != nullptr) {
+                    const char* path = "Data/Image/efe2/thunder.efk";
+                    s_thunderEffectHandle = LoadEffekseerEffect(path, 1.0f);
+                    if (s_thunderEffectHandle == -1) {
+                        std::fprintf(stderr, "ThunderAttack: LoadEffekseerEffect failed for %s\n", path);
+                    }
+                }
+                else {
+                    std::fprintf(stderr, "ThunderAttack: Effekseer 3D manager not available\n");
+                }
+            }
+
+            if (s_thunderEffectHandle != -1) {
+                // ★ 3Dエフェクトとして再生
+                int ph = PlayEffekseer3DEffect(s_thunderEffectHandle);
+                if (ph != -1) {
+                    // ★ 3D空間の地面の座標にセット
+                    VECTOR groundPos = bullet.pos;
+                    groundPos.y = 5.0f;
+
+                    SetPosPlayingEffekseer3DEffect(ph, groundPos.x, groundPos.y, groundPos.z);
+                    SetScalePlayingEffekseer3DEffect(ph, 15, 15, 15);
+                }
+                else {
+                    std::fprintf(stderr, "ThunderAttack: PlayEffekseer3DEffect returned -1\n");
+                }
+            }
+            // ==========================================================
+
+            // 着弾後は非アクティブ化
             bullet.isActive = false;
             bullet.elapsed = 0.0f;
         }
@@ -71,6 +114,7 @@ void ThunderAttack::Draw()
     for (const auto& bullet : bullets_) {
         if (!bullet.isActive) continue;
         DrawSphere3D(bullet.pos, 30.0f, 16, GetColor(255, 200, 50), GetColor(255, 200, 50), true);
+
         // 地面エフェクト（小さい円）
         VECTOR ground = bullet.pos;
         ground.y = 0.0f;
@@ -81,7 +125,6 @@ void ThunderAttack::Draw()
 void ThunderAttack::DrawWarning()
 {
     // ワーニングは無効（要件より）
-    // no-op
 }
 
 void ThunderAttack::Execute()
@@ -90,14 +133,12 @@ void ThunderAttack::Execute()
     strikeGridIndices_.clear();
 
     if (!isPlayer_) {
-        // ★修正箇所：敵が発射した落雷
-        // すでにEnemy.cppの詠唱開始時にSetPos()で「ロックオン済みの座標」が渡されているので、
-        // プレイヤーを再検索したりランダム生成したりせず、渡された座標(pos_)にそのまま落とす！
+        // 敵が発射した落雷: 事前に SetPos() された座標を使う
         strikePositions_.push_back(pos_);
         strikeGridIndices_.push_back(AttackBase::CalcGridIndex(pos_, isPlayer_));
     }
     else {
-        // プレイヤーが発射した落雷: （ここは元のまま、敵の頭上を自動サーチ）
+        // プレイヤーが発射した落雷: 敵の頭上へ落とす
         for (auto* a : targets_) {
             if (!a) continue;
             if (!a->IsEnemy()) continue;
@@ -108,7 +149,7 @@ void ThunderAttack::Execute()
             strikeGridIndices_.push_back(gidx);
         }
 
-        // もし敵がいなければ、targetGridIdx_ または pos_ を使うフォールバック
+        // 敵がいなければフォールバック
         if (strikePositions_.empty()) {
             VECTOR fallback = pos_;
             if (fallback.x == 0.0f && fallback.y == 0.0f && fallback.z == 0.0f) {
@@ -128,7 +169,7 @@ void ThunderAttack::Execute()
         ThunderBullet bullet;
         // 上空から落とす
         bullet.pos = target;
-        bullet.pos.y = 300.0f; // Enemy側で高さをズラしているのでここは固定でOK
+        bullet.pos.y = 300.0f; // 高さ
         bullet.vel = { 0.0f, -600.0f, 0.0f }; // 下方向速度
         bullet.gridIndex = gridIdx;
         bullet.isActive = true;
