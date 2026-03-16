@@ -1,5 +1,6 @@
 ﻿#include "TitleScene.h"
 #include <DxLib.h>
+#include"EffekseerForDXLib.h"
 #include "../../Input/InputManager.h"
 #include "../SceneManager.h"
 #include "../../Object/Attack/AttackManager.h"
@@ -97,6 +98,7 @@ void TitleScene::Init(void) {
 
 void TitleScene::Load(void) {
 	handle_ = LoadGraph("Data/Image/Title2.png");
+	titleHandle_ = LoadGraph("Data/Image/title.png");
 	LoadCommandsFromCSV("Data/CSV/Word.csv");
 }
 
@@ -116,6 +118,10 @@ void TitleScene::Release(void) {
 	if (keyInputHandleCmd_ != -1) {
 		DeleteKeyInput(keyInputHandleCmd_);
 		keyInputHandleCmd_ = -1;
+	}
+	if (titleHandle_ != -1) {
+		DeleteGraph(titleHandle_);
+		titleHandle_ = -1;
 	}
 }
 
@@ -416,6 +422,20 @@ void TitleScene::Draw(void) {
 	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 120);
 	DrawBox(0, 0, screenW, screenH, GetColor(0, 0, 0), TRUE);
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+
+
+	// タイトルロゴ描画 (Title.png があれば中央上部に表示)
+	if (titleHandle_ != -1) {
+		// 画像の実サイズを取得して、DrawRotaGraph の中心座標(x,y)で中央上部に描画する
+		int gw = 0, gh = 0;
+		GetGraphSize(titleHandle_, &gw, &gh);
+		const float scale = 0.3f; // 必要なら調整
+		const int logoCenterX = screenW / 2; // 横は画面中央
+		const int topMargin = 20; // 上からの余白
+		// DrawRotaGraph は座標を画像の中心として扱うため、Yは余白＋(高さの半分)
+		const int logoCenterY = topMargin + static_cast<int>(gh * scale * 0.5f);
+		DrawRotaGraph(logoCenterX, logoCenterY, scale, 0.0, titleHandle_, TRUE);
+	}
 
 	// --- 定数定義 ---
 	const unsigned int colWhite = GetColor(255, 255, 255);

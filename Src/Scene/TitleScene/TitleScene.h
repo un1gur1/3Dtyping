@@ -33,7 +33,7 @@ private:
 	// --- システム・リソース ---
 	AttackManager* attackManager_ = nullptr;
 	int handle_ = -1; // 背景画像ハンドル
-
+	int titleHandle_ = -1; // タイトルロゴハンドル
 	// --- 状態フラグ ---
 	bool isRegisteringUltimate_ = false;
 	PauseMenuState pauseState_ = PauseMenuState::None;
