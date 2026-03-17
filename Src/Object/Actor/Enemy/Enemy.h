@@ -107,4 +107,10 @@ private:
 	// --- HP閾値定数 ---
 	static constexpr float HP_HIGH = 0.7f;
 	static constexpr float HP_LOW = 0.3f;
+
+	int s_thunderWarningEffectHandle;
+	bool s_thunderWarningEffectTried;
+	std::vector<int> warningEffectPlayHandles_;
+
+
 };

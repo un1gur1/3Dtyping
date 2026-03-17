@@ -1,5 +1,4 @@
-﻿
-#include "TitleScene.h"
+﻿#include "TitleScene.h"
 #include <DxLib.h>
 #include "EffekseerForDXLib.h"
 #include "../../Input/InputManager.h"
@@ -7,20 +6,19 @@
 #include "../../Object/Attack/AttackManager.h"
 #include "../../Common/UiManager.h"
 #include "../../Common/RomanjiConverter.h"
-
+#include"../../Common/Fader.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include <random> // 追加
+#include <random> 
 
 // =======================================================
-// 文字列・正規化ヘルパー（無名名前空間）
+// 文字列・正規化ヘルパー
 // =======================================================
 namespace {
-	// ... 既存ヘルパーは省略せずそのまま ...
 	static bool IsLikelyRomanji(const std::string& s) {
 		if (s.empty()) return false;
 		bool hasAlpha = false;
@@ -115,13 +113,8 @@ void TitleScene::Load(void) {
 	titleHandle_ = LoadGraph("Data/Image/title.png");
 	LoadCommandsFromCSV("Data/CSV/Word.csv");
 
-	// --- Effekseer 初期化 ---
-	if (!effekseerInitialized_) {
-		// 適切なパーティクル上限を指定
-		if (Effekseer_Init(2000) == 0) {
-			effekseerInitialized_ = true;
-		}
-	}
+
+	effekseerInitialized_ = true; // フラグだけ立てて、タイトル画面の花火を許可する
 
 	// ウィンドウサイズを Effekseer に通知
 	int sw = 0, sh = 0;
@@ -153,7 +146,7 @@ void TitleScene::LoadEnd(void) {
 }
 
 void TitleScene::Release(void) {
-	// 画像リソースとキー入力ハンドルの解放
+	// 1. 画像リソースの解放
 	if (handle_ != -1) {
 		DeleteGraph(handle_);
 		handle_ = -1;
@@ -162,6 +155,8 @@ void TitleScene::Release(void) {
 		DeleteGraph(titleHandle_);
 		titleHandle_ = -1;
 	}
+
+	// 2. キー入力ハンドルの解放
 	if (keyInputHandle_ != -1) {
 		DeleteKeyInput(keyInputHandle_);
 		keyInputHandle_ = -1;
@@ -171,27 +166,22 @@ void TitleScene::Release(void) {
 		keyInputHandleCmd_ = -1;
 	}
 
-	
+	// ==========================================================
+	// 3. エフェクトの強制停止とリストのクリア
+	// 次のシーンに行く前に、今画面に出ている花火だけを止めます。
+	// ==========================================================
 	if (!efkPlayingHandles_.empty()) {
-		std::vector<int> alive;
-		alive.reserve(efkPlayingHandles_.size());
-
 		for (int ph : efkPlayingHandles_) {
-			// 再生中(TRUE = 1)ならリストに残す
-			if (IsEffekseer2DEffectPlaying(ph) == TRUE) {
-				alive.push_back(ph);
+			// 再生中(1=TRUE)なら強制ストップさせる
+			if (IsEffekseer2DEffectPlaying(ph) == 1) {
+				StopEffekseer2DEffect(ph);
 			}
-			// 再生終了(FALSE = 0)なら何もしない（自然消滅させる）
 		}
+		// リストの中身を完全に空にする
+		efkPlayingHandles_.clear();
+	}
 
-		efkPlayingHandles_.swap(alive);
-	}
-	if (effekseerInitialized_) {
-		Effkseer_End();
-		effekseerInitialized_ = false;
-	}
 }
-
 // =======================================================
 // CSV読み込み・コマンド処理
 // =======================================================
@@ -334,37 +324,31 @@ void TitleScene::Update(void) {
 		UpdateEffekseer2D();
 	}
 
-	// ----- 花火（ランダムスポーン）処理 -----
-	// 1/60 フレーム想定
 	const float frameDt = 1.0f / 60.0f;
 
-	// 再生終了したハンドルを掃除
+	// ==========================================================
+	// ★ 最重要修正箇所：正常なお掃除ロジック！
+	// 再生が終了した無効なデータを破棄し、再生中のもの(TRUE)だけを残す
+	// ==========================================================
 	if (!efkPlayingHandles_.empty()) {
 		std::vector<int> alive;
 		alive.reserve(efkPlayingHandles_.size());
 		for (int ph : efkPlayingHandles_) {
-			// IsEffekseer2DEffectPlaying: 0 -> 再生中, -1 -> 再生終了/無効
-			int playing = IsEffekseer2DEffectPlaying(ph);
-			if (playing == 0) {
-				alive.push_back(ph);
-			}
-			else {
-				// 明示的に停止しておく（必要なら）
-				StopEffekseer2DEffect(ph);
+			// IsEffekseer2DEffectPlaying: 1(TRUE)=再生中, 0(FALSE)=終了, -1=エラー
+			if (IsEffekseer2DEffectPlaying(ph) == TRUE) {
+				alive.push_back(ph); // 再生中のみリストに残す
 			}
 		}
 		efkPlayingHandles_.swap(alive);
 	}
 
-	// スポーンタイマー更新
+	// ----- 花火（ランダムスポーン）処理 -----
 	efkSpawnTimer_ -= frameDt;
 	if (efkSpawnTimer_ <= 0.0f) {
-		// 同時再生上限を越えていなければスポーン
 		if (effekseerInitialized_ && efkResourceHandle_ != -1 && static_cast<int>(efkPlayingHandles_.size()) < efkMaxSimultaneous_) {
 			int sw = 0, sh = 0;
 			GetDrawScreenSize(&sw, &sh);
 			if (sw > 0 && sh > 0) {
-				// ランダム位置（画面幅全体、高さは上部〜中段に限定して花火っぽく）
 				std::uniform_real_distribution<float> dx(0.1f * sw, 0.9f * sw);
 				std::uniform_real_distribution<float> dy(0.05f * sh, 0.5f * sh);
 				std::uniform_real_distribution<float> dscale(1.0f, 3.5f);
@@ -381,18 +365,16 @@ void TitleScene::Update(void) {
 				if (ph != -1) {
 					SetPosPlayingEffekseer2DEffect(ph, px, py, 0.0f);
 					SetScalePlayingEffekseer2DEffect(ph, scale, scale, scale);
-					// 色をランダムに（透過255）
 					SetColorPlayingEffekseer2DEffect(ph, r, g, b, 255);
 					efkPlayingHandles_.push_back(ph);
 				}
 			}
 		}
-		// 次回スポーンまでの間隔をランダム化して少しばらつかせる
 		std::uniform_real_distribution<float> jitter(0.6f * efkSpawnInterval_, 1.4f * efkSpawnInterval_);
 		efkSpawnTimer_ = jitter(efkRng_);
 	}
-	// ----- 花火処理 終了 -----
 
+	// UIメッセージの表示時間管理
 	if (registeredDisplayRemaining_ > 0) {
 		--registeredDisplayRemaining_;
 		if (registeredDisplayRemaining_ == 0) {
@@ -516,7 +498,7 @@ void TitleScene::Update(void) {
 			if (!isRegisteringUltimate_) SetActiveKeyInput(keyInputHandleCmd_);
 
 			ProcessTitleCommand(raw);
-			return; // 遷移する可能性があるので即リターン
+			return;
 		}
 	}
 
@@ -535,7 +517,6 @@ void TitleScene::Update(void) {
 
 	prevReturnDown_ = curReturnDown;
 }
-
 // =======================================================
 // Draw
 // =======================================================
@@ -621,7 +602,7 @@ void TitleScene::Draw(void) {
 	if (attackManager_) {
 		const int listW = 350;
 		const int listH = 400;
-		const int listX = screenW - listW - 40;
+		const int listX = screenW - listW - 100;
 		const int listY = 80;
 
 		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 180);

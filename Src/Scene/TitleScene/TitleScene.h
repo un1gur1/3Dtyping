@@ -6,7 +6,7 @@
 #include <random>
 
 class AttackManager;
-
+class Fader;
 class TitleScene : public SceneBase
 {
 public:
@@ -84,4 +84,6 @@ private:
 	// --- 入力制御用 ---
 	bool ignoreNextReturn_ = false;
 	bool prevReturnDown_ = false;
+
+	Fader* fader_ = nullptr; // フェードイン・アウト用
 };
