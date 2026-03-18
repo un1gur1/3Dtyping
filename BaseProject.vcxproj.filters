@@ -67,11 +67,11 @@
     <Filter Include="Src\Object\Attack\HealAttack">
       <UniqueIdentifier>{3be43031-b99c-4674-87b1-7322b4f2cdcb}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Src\Object\Attack\SwordAttack">
-      <UniqueIdentifier>{78c16c81-8b0b-4eb6-9e98-bde60896aec8}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Src\Object\Attack\ThunderAttack">
       <UniqueIdentifier>{e1a57662-a245-4d58-a8bd-2cff47ad3737}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Object\Attack\SwordAttack">
+      <UniqueIdentifier>{7a2f87d0-bb24-4857-932c-52d6a9ebce00}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -171,6 +171,9 @@
     <ClCompile Include="HealAttack.cpp">
       <Filter>Src\Object\Attack\HealAttack</Filter>
     </ClCompile>
+    <ClCompile Include="Src\Object\Attack\SwordAttack\SwordAttack.cpp">
+      <Filter>Src\Object\Attack</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Camera\Camera.h">
@@ -268,6 +271,12 @@
     </ClInclude>
     <ClInclude Include="HealAttack.h">
       <Filter>Src\Object\Attack\HealAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Object\Attack\SwordAttack\SwordAttack.h">
+      <Filter>Src\Object\Attack</Filter>
+    </ClInclude>
+    <ClInclude Include="SwordAttack.h">
+      <Filter>Src\Object\Attack\SwordAttack</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

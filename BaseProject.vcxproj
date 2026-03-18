@@ -23,6 +23,7 @@
     <ClCompile Include="HealAttack.cpp" />
     <ClCompile Include="IceAttack.cpp" />
     <ClCompile Include="MeteorAttack.cpp" />
+    <ClCompile Include="Src\Object\Attack\SwordAttack\SwordAttack.cpp" />
     <ClCompile Include="Src\Scene\ResultScene\ResultWinScene.cpp" />
     <ClCompile Include="Src\Scene\ResultScene\ResultScene.cpp" />
     <ClCompile Include="Src\Application.cpp" />
@@ -59,6 +60,7 @@
     <ClInclude Include="HealAttack.h" />
     <ClInclude Include="IceAttack.h" />
     <ClInclude Include="MeteorAttack.h" />
+    <ClInclude Include="Src\Object\Attack\SwordAttack\SwordAttack.h" />
     <ClInclude Include="Src\Scene\ResultScene\ResultWinScene.h" />
     <ClInclude Include="Src\Scene\ResultScene\ResultScene.h" />
     <ClInclude Include="Src\Object\Attack\RangedAttack\RangedAttack.h" />
@@ -89,6 +91,7 @@
     <ClInclude Include="Src\Object\Attack\UltimateAttack\UltimateAttack.h" />
     <ClInclude Include="Src\Common\UiManager.h" />
     <ClInclude Include="Src\Object\Attack\Magic\ThunderAttack.h" />
+    <ClInclude Include="SwordAttack.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
