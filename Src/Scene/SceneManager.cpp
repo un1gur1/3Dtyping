@@ -1,20 +1,23 @@
 #include "SceneManager.h"
-
 #include <DxLib.h>
-
 #include "Loading/Loading.h"
 #include "TitleScene/TitleScene.h"
 #include "GameScene/GameScene.h"
 #include "ResultScene/ResultScene.h"
 #include "ResultScene/ResultWinScene.h"
+#include "../Common/Fader.h" 
+
 SceneManager* SceneManager::instance_ = nullptr;
 
 SceneManager::SceneManager(void)
 {
 	scene_ = nullptr;
 	load_ = nullptr;
+	fader_ = nullptr;
 	sceneId_ = SCENE_ID::NONE;
+	nextSceneId_ = SCENE_ID::NONE;
 	isGameEnd_ = false;
+	isChanging_ = false;
 }
 
 SceneManager::~SceneManager(void)
@@ -28,123 +31,151 @@ void SceneManager::Init(void)
 	load_->Init();
 	load_->Load();
 
+	// フェード生成
+	fader_ = new Fader();
+	fader_->Init();
+
 	// 3D情報の初期化
 	Init3D();
 
-	// 最初はタイトル画面から
+	// 最初はフェードなしでタイトルへ
+	isChanging_ = false;
 	ChangeScene(SCENE_ID::TITLE);
 }
 
 void SceneManager::Init3D(void)
 {
-	// 背景色設定
 	SetBackgroundColor(0, 0, 0);
-
-	// Zバッファを有効にする
 	SetUseZBuffer3D(true);
-
-	// Zバッファへの書き込みを有効にする
 	SetWriteZBuffer3D(true);
-
-	// バックカリングを有効にする
 	SetUseBackCulling(true);
-
-	// ライトの設定
 	SetUseLighting(true);
-
-	// 正面から斜め下に向かったライト
 	ChangeLightTypeDir({ 0.00f, -1.00f, 1.00f });
 }
 
-// 更新
 void SceneManager::Update(void)
 {
-	// シーンがなければ終了
+	fader_->Update();
+
+	// 1. シーン切り替え中（暗転待ち）の処理
+	if (isChanging_)
+	{
+		// 画面が真っ暗になったら
+		if (fader_->GetState() == Fader::STATE::FADE_OUT && fader_->IsEnd())
+		{
+			// --- ここでシーンを入れ替える ---
+			PerformSceneChange();
+
+			// ロードが「終わるのを待たずに」、すぐにフェードインを開始する
+			fader_->SetFade(Fader::STATE::FADE_IN);
+
+			isChanging_ = false; // 暗転待ちフラグを下ろす
+		}
+		return; // 暗転中はここで処理を抜ける
+	}
+
 	if (scene_ == nullptr) { return; }
 
-	// ロード中
+	// 2. ロード中の処理（画面は明るくなりながら、裏でロードが進む）
 	if (load_->IsLoading())
 	{
-		// ロード更新
 		load_->Update();
 
-		// ロードの更新が終了していたら
 		if (load_->IsLoading() == false)
 		{
-			// ロード後の初期化
 			scene_->LoadEnd();
+			// ここではもうフェードイン指示はしない（上で既にやってるから）
 		}
 	}
-	// 通常の更新処理
 	else
 	{
-		// 現在のシーンの更新
 		scene_->Update();
 	}
 }
-
 void SceneManager::Draw(void)
 {
-	// ロード中ならロード画面を描画
+	// 1. シーンまたはロード画面を描画
 	if (load_->IsLoading())
 	{
-		// ロードの描画
 		load_->Draw();
 	}
-	// 通常の更新
+	else if (scene_ != nullptr)
+	{
+		scene_->Draw();
+	}
+
+	fader_->Draw();
+}
+
+// 外部（TitleSceneなど）から呼ばれる遷移リクエスト
+void SceneManager::ChangeScene(SCENE_ID nextId)
+{
+	if (isChanging_) return; // 連続押し防止
+
+	// 初回（起動時）はフェードなしで即切り替え
+	if (sceneId_ == SCENE_ID::NONE)
+	{
+		nextSceneId_ = nextId;
+		PerformSceneChange();
+	}
 	else
 	{
-		//　現在のシーン描画
-		scene_->Draw();
+		// 2回目以降は遷移を予約してフェードアウト開始
+		nextSceneId_ = nextId;
+		isChanging_ = true;
+		fader_->SetFade(Fader::STATE::FADE_OUT);
+	}
+}
+void SceneManager::Delete(void)
+{
+	if (scene_)
+	{
+		scene_->Release();
+		delete scene_;
+	}
+
+	if (load_)
+	{
+		load_->Release();
+		delete load_;
+	}
+
+	if (fader_)
+	{
+		// FaderにReleaseがあれば呼ぶ
+		delete fader_;
 	}
 }
 
-void SceneManager::Delete(void)
-{
-	// 現在のシーンの解放・削除
-	scene_->Release();
-	delete scene_;
 
-	// ロード画面の削除
-	load_->Release();
-	delete load_;
-}
-
-void SceneManager::ChangeScene(SCENE_ID nextId)
+// 内部で実際にメモリを入れ替える処理
+void SceneManager::PerformSceneChange(void)
 {
-	// シーンを変更する
-	sceneId_ = nextId;
+	sceneId_ = nextSceneId_;
 
 	// 現在のシーンを解放
 	if (scene_ != nullptr)
 	{
 		scene_->Release();
 		delete scene_;
+		scene_ = nullptr;
 	}
 
 	// 各シーンに切り替え
 	switch (sceneId_)
 	{
-	case SceneManager::SCENE_ID::NONE:
-		break;
-	case SceneManager::SCENE_ID::TITLE:
-		scene_ = new TitleScene();
-		break;
-	case SceneManager::SCENE_ID::GAME:
-		scene_ = new GameScene();
-		break;
-	case SceneManager::SCENE_ID::RESULT_WIN:
-		scene_ = new ResultWinScene();
-		break;
-	case SceneManager::SCENE_ID::RESULT_LOSE:
-		scene_ = new ResultScene();
-		break;
-	default:
-		break;
+	case SCENE_ID::TITLE:		scene_ = new TitleScene(); break;
+	case SCENE_ID::GAME:		scene_ = new GameScene();  break;
+	case SCENE_ID::RESULT_WIN:	scene_ = new ResultWinScene(); break;
+	case SCENE_ID::RESULT_LOSE:	scene_ = new ResultScene(); break;
+	default: break;
 	}
 
-	// 読み込み(非同期)
-	load_->StartAsyncLoad();
-	scene_->Load();
-	load_->EndAsyncLoad();
+	if (scene_)
+	{
+		// 読み込み(非同期)
+		load_->StartAsyncLoad();
+		scene_->Load();
+		load_->EndAsyncLoad();
+	}
 }

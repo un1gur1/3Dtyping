@@ -9,8 +9,8 @@
 #include <sstream>
 #include <random>
 #include <functional> 
-#include <cctype>    // ’Ç‰Á: tolower—p
-#include <algorithm> // ’Ç‰Á: find_if—p
+#include <cctype>   
+#include <algorithm> 
 
 // =======================================================
 // TitleScene / Player ‚Æ“¯‚¶³‹K‰»ƒwƒ‹ƒp[‚ğ’Ç‰Á
@@ -222,7 +222,7 @@ void AttackManager::LoadCommandsFromCSV(const std::string& path) {
         ultimateCommandDataMap_[commandId] = data;
 
         // ==========================================
-        // š ‚±‚±‚ª—vI “Ç‚İ‚ñ‚¾•KE‹Z–¼‚à‚Ğ‚ç‚ª‚È‚É³‹K‰»I
+        // “Ç‚İ‚ñ‚¾•KE‹Z–¼‚à‚Ğ‚ç‚ª‚È‚É³‹K‰»
         // ==========================================
         std::string normalizedCommand = ConvertIfRomanji(ToLowerTrim(command));
 

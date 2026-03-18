@@ -41,6 +41,8 @@ private:
 	// グリッド
 	Grid* grid_;
 	int skyDomeModelId_ = -1;
+	float skyDomeAngle_ = 0.0f;
+
 	// 全てのアクター
 	std::vector<ActorBase*> allActor_;
 	AttackManager* attackManager_; 

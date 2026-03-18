@@ -5,6 +5,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <sstream>
+#include<EffekseerForDXLib.h>
 
 #include "../../Attack/AttackManager.h"
 #include "../../Attack/AttackBase.h"
@@ -407,8 +408,33 @@ void Enemy::PreparePlannedAttackData() {
 		PlannedAttack pa;
 		pa.kind = PlannedAttack::Kind::THUNDER;
 		pa.damage = damage;
-		pa.thunderPositions = std::move(positions);
+		pa.thunderPositions = positions; // ← std::move をやめて通常のコピーにする
 		plannedAttacks_.push_back(pa);
+
+		// ==========================================================
+		// ★ 追加：雷の予告座標が決まった瞬間にエフェクトをまとめて再生！
+		// ==========================================================
+		static int s_thunderWarningEffectHandle = -1;
+		static bool s_thunderWarningEffectTried = false;
+		if (!s_thunderWarningEffectTried) {
+			s_thunderWarningEffectTried = true;
+			if (GetEffekseer3DManager() != nullptr) {
+				const char* path = "Data/Image/efe2/thun.efk"; 
+				s_thunderWarningEffectHandle = LoadEffekseerEffect(path, 1.0f);
+			}
+		}
+
+		// 決まった座標（positions）の数だけ、エフェクトを再生する
+		if (s_thunderWarningEffectHandle != -1) {
+			for (const auto& tpos : positions) {
+				int ph = PlayEffekseer3DEffect(s_thunderWarningEffectHandle);
+				if (ph != -1) {
+					SetPosPlayingEffekseer3DEffect(ph, tpos.x, tpos.y, tpos.z);
+					SetScalePlayingEffekseer3DEffect(ph, 50.0f, 50.0f, 50.0f);
+				}
+			}
+		}
+		// ==========================================================
 	}
 	else {
 		const VECTOR playerPos = player_->GetPos();
@@ -425,7 +451,6 @@ void Enemy::PreparePlannedAttackData() {
 		plannedAttacks_.push_back(pa);
 	}
 }
-
 void Enemy::OnAttackCancelled() {
 	typingCommand_.clear();
 	UIManager::GetInstance().SetEnemyCasting("", 0.0f, 0.0f);
@@ -445,10 +470,11 @@ void Enemy::Draw(void) {
 	if (!typingCommand_.empty() && !plannedAttacks_.empty()) {
 		for (const auto& pa : plannedAttacks_) {
 			if (pa.kind == PlannedAttack::Kind::THUNDER) {
+				// 各予告位置で球体を出す（★エフェクト再生処理はここから削除！）
 				for (const auto& tpos : pa.thunderPositions) {
 					VECTOR drawPos = tpos;
 					drawPos.y += 5.0f;
-					DrawSphere3D(drawPos, 30.0f, 12, GetColor(255, 160, 0), true, false);
+					//DrawSphere3D(drawPos, 30.0f, 12, GetColor(255, 160, 0), true, false);
 				}
 			}
 			else if (pa.kind == PlannedAttack::Kind::RANGED || pa.kind == PlannedAttack::Kind::ULTIMATE) {
@@ -467,7 +493,6 @@ void Enemy::Draw(void) {
 		}
 	}
 }
-
 void Enemy::ChangeState(const ActorState state) {
 	state_ = state;
 	switch (state_) {
@@ -517,3 +542,4 @@ void Enemy::AddStun(const int value) {
 }
 void Enemy::OnStunned() {}
 bool Enemy::IsDead() const { return hp_ <= 0; }
+

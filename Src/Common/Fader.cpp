@@ -33,7 +33,7 @@ void Fader::SetFade(STATE state)
 void Fader::Init(void)
 {
 	state_ = STATE::NONE;
-	alpha_ = 0;
+	alpha_ = 5;
 	isPreEnd_ = true;
 	isEnd_ = true;
 }

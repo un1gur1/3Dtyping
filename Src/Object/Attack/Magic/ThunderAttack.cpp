@@ -3,13 +3,12 @@
 #include <DxLib.h>
 #include <random>
 #include <algorithm>
-#include <cstdio> // std::fprintf用
+#include <cstdio>
 #include "EffekseerForDXLib.h"
 #include "../../Actor/Player/Player.h"
 #include "../../Actor/ActorBase.h"
 #include "../../../Application.h"
 #include "../../../Common/UiManager.h"
-
 
 
 ThunderAttack::ThunderAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
@@ -54,41 +53,6 @@ void ThunderAttack::Update()
                 }
             }
 
-            // ==========================================================
-            // ★ 着弾エフェクトを再生（Effekseer 3D）
-            // ==========================================================
-            if (!s_thunderEffectTried) {
-                s_thunderEffectTried = true;
-
-                // ★ 3Dマネージャーが存在するか確認
-                if (GetEffekseer3DManager() != nullptr) {
-                    const char* path = "Data/Image/efe2/thunder.efk";
-                    s_thunderEffectHandle = LoadEffekseerEffect(path, 1.0f);
-                    if (s_thunderEffectHandle == -1) {
-                        std::fprintf(stderr, "ThunderAttack: LoadEffekseerEffect failed for %s\n", path);
-                    }
-                }
-                else {
-                    std::fprintf(stderr, "ThunderAttack: Effekseer 3D manager not available\n");
-                }
-            }
-
-            if (s_thunderEffectHandle != -1) {
-                // ★ 3Dエフェクトとして再生
-                int ph = PlayEffekseer3DEffect(s_thunderEffectHandle);
-                if (ph != -1) {
-                    // ★ 3D空間の地面の座標にセット
-                    VECTOR groundPos = bullet.pos;
-                    groundPos.y = 5.0f;
-
-                    SetPosPlayingEffekseer3DEffect(ph, groundPos.x, groundPos.y, groundPos.z);
-                    SetScalePlayingEffekseer3DEffect(ph, 15, 15, 15);
-                }
-                else {
-                    std::fprintf(stderr, "ThunderAttack: PlayEffekseer3DEffect returned -1\n");
-                }
-            }
-            // ==========================================================
 
             // 着弾後は非アクティブ化
             bullet.isActive = false;
@@ -113,18 +77,18 @@ void ThunderAttack::Draw()
     // 弾を描画（弾ごとの位置で描く）
     for (const auto& bullet : bullets_) {
         if (!bullet.isActive) continue;
-        DrawSphere3D(bullet.pos, 30.0f, 16, GetColor(255, 200, 50), GetColor(255, 200, 50), true);
+        //DrawSphere3D(bullet.pos, 30.0f, 16, GetColor(255, 200, 50), GetColor(255, 200, 50), true);
 
         // 地面エフェクト（小さい円）
         VECTOR ground = bullet.pos;
         ground.y = 0.0f;
-        DrawSphere3D(ground, 60.0f, 24, GetColor(255, 180, 80), GetColor(0, 0, 0), true);
+        //DrawSphere3D(ground, 60.0f, 24, GetColor(255, 180, 80), GetColor(0, 0, 0), true);
     }
 }
 
 void ThunderAttack::DrawWarning()
 {
-    // ワーニングは無効（要件より）
+    // ワーニングは無効
 }
 
 void ThunderAttack::Execute()
@@ -160,6 +124,23 @@ void ThunderAttack::Execute()
         }
     }
 
+    // ==========================================================
+    // ★ エフェクトのロードをここで行う（初回のみ）
+    // ==========================================================
+    if (!s_thunderEffectTried) {
+        s_thunderEffectTried = true;
+        if (GetEffekseer3DManager() != nullptr) {
+            const char* path = "Data/Image/efe2/efe.efk"; 
+            s_thunderEffectHandle = LoadEffekseerEffect(path, 1.0f);
+            if (s_thunderEffectHandle == -1) {
+                AppLogAdd("【エラー】Effekseerの読み込み失敗！: %s\n", path);
+            }
+            else {
+                AppLogAdd("【大成功】Effekseerの読み込み完了！\n");
+            }
+        }
+    }
+
     // グリッド状態を Attack に変更して、上空から落とす弾を生成
     for (size_t i = 0; i < strikePositions_.size(); ++i) {
         const VECTOR& target = strikePositions_[i];
@@ -175,5 +156,21 @@ void ThunderAttack::Execute()
         bullet.isActive = true;
         bullet.elapsed = 0.0f;
         bullets_.push_back(bullet);
+
+        // ==========================================================
+        // ★ 攻撃が生成された瞬間にエフェクトを再生！
+        // ==========================================================
+        if (s_thunderEffectHandle != -1) {
+            int ph = PlayEffekseer3DEffect(s_thunderEffectHandle);
+            if (ph != -1) {
+                // ターゲットの座標(地面)でエフェクトを再生開始する
+                SetPosPlayingEffekseer3DEffect(ph, target.x, 0.0f, target.z);
+                SetScalePlayingEffekseer3DEffect(ph, 100.0f, 100.0f, 100.0f);
+                AppLogAdd("【大成功】生成と同時にエフェクトを座標(%.1f, 0.0, %.1f)で再生！ ハンドル:%d\n", target.x, target.z, ph);
+            }
+            else {
+                AppLogAdd("【エラー】PlayEffekseer3DEffect が失敗しました！\n");
+            }
+        }
     }
 }

@@ -2,7 +2,7 @@
 
 class SceneBase;
 class Loading;
-
+class Fader;
 class SceneManager
 {
 
@@ -67,7 +67,7 @@ public:
 	bool GetGameEnd(void) { return isGameEnd_; }
 
 private:
-
+	void PerformSceneChange(void); // 実際の切り替えロジック
 	// 各種シーン
 	SceneBase* scene_;
 
@@ -79,4 +79,14 @@ private:
 
 	// ゲーム終了
 	bool isGameEnd_;
+
+	Fader* fader_;
+
+	// 次のシーンID（遷移予約用）
+	SCENE_ID nextSceneId_;
+
+	// シーン遷移中フラグ
+	bool isChanging_;
+
+	
 };

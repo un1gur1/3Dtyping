@@ -1,6 +1,7 @@
 #include "GameScene.h"
 
 #include <DxLib.h>
+#include<EffekseerForDXLib.h>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -47,6 +48,7 @@ void GameScene::Init(void)
 		actor->Init();
 	}
 
+
 }
 
 void GameScene::Load(void)
@@ -59,18 +61,18 @@ void GameScene::Load(void)
     for (int i = 0; i < materialNum; ++i) {
         COLOR_F color = MV1GetMaterialDifColor(skyDomeModelId_, i);
         // 0.5倍で暗くする（値はお好みで調整）
-        color.r *= 0.5f;
-        color.g *= 0.5f;
-        color.b *= 0.5f;
+        color.r *=1.5f;
+        color.g *=1.5f;
+        color.b *=1.5f;
         MV1SetMaterialDifColor(skyDomeModelId_, i, color);
     }
 }
 	// 生成処理
-	camera_ = new Camera();					// カメラの生成
+	camera_ = new Camera();							// カメラの生成
 	stage_ = new Stage(100,100);					// ステージの生成
 	Grid* grid_ = new Grid();						// グリッドの生成
-	Player* player_ = new Player(camera_);	// プレイヤーの生成
-	Enemy* enemy_ = new Enemy(player_);		// 敵の生成
+	Player* player_ = new Player(camera_);			// プレイヤーの生成
+	Enemy* enemy_ = new Enemy(player_);				// 敵の生成
 
 	// アクター配列に入れる
 	allActor_.push_back(player_);
@@ -186,10 +188,13 @@ void GameScene::Update(void)
 			WallCollision(actor);
 		}
 	}
+
 	// 攻撃管理の更新
 	if (attackManager_) {
 		attackManager_->UpdateAll(allActor_);
 	}
+
+	UpdateEffekseer3D();
 
 	// 以下、HPやシーン遷移などの処理も通常時のみ
 	Player* player = nullptr;
@@ -229,15 +234,31 @@ void GameScene::Draw(void)
 	//SetBackgroundColor(255, 255, 255);
 
 
-	// ドーム型背景モデルの描画（カメラより前に描画）
-	if (skyDomeModelId_ != -1) {
-		MV1SetPosition(skyDomeModelId_, VGet(0.0f, 0.0f, 0.0f)); // 原点に設置
-		MV1SetScale(skyDomeModelId_, VGet(30.0f, 30.0f, 30.0f)); // 必要に応じて拡大
-		MV1DrawModel(skyDomeModelId_);
+	if (skyDomeModelId_ != -1 && allActor_.size() > 0) {
+		Player* player = nullptr;
+		for (auto actor : allActor_) {
+			if (actor && actor->IsPlayer()) {
+				player = static_cast<Player*>(actor);
+				break;
+			}
+		}
+		if (player) {
+			VECTOR playerPos = player->GetPos();
+			skyDomeAngle_ += 0.0003f; // 回転速度
+			if (skyDomeAngle_ > DX_TWO_PI) skyDomeAngle_ -= DX_TWO_PI;
+
+			MATRIX rotMat = MGetRotY(skyDomeAngle_);
+			MV1SetRotationMatrix(skyDomeModelId_, rotMat);
+			MV1SetPosition(skyDomeModelId_, playerPos);
+			MV1SetScale(skyDomeModelId_, VGet(30.0f, 30.0f, 30.0f));
+			MV1DrawModel(skyDomeModelId_);
+		}
 	}
 	// カメラの描画更新
 	camera_->SetBeforeDraw();
 	camera_->DrawDebug();
+
+	Effekseer_Sync3DSetting();
 	// ステージ描画
 	stage_->Draw();
 
@@ -248,10 +269,13 @@ void GameScene::Draw(void)
 		actor->Draw();
 	}
 
+
 	// 攻撃管理の描画
 	if (attackManager_) {
 		attackManager_->DrawAll();
 	}
+
+	DrawEffekseer3D();
 
 	// UI描画
 	if (pauseState_ == PauseMenuState::Pause) {

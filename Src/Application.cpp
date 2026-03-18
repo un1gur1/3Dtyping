@@ -1,7 +1,7 @@
 #include "Application.h"
 
 #include <DxLib.h>
-
+#include<EffekseerForDXLib.h>
 #include "Common/FpsControl.h"
 #include "Input/InputManager.h"
 #include "Scene/SceneManager.h"
@@ -38,6 +38,15 @@ void Application::Init(void)
 		isInitFail_ = true;
 		return;
 	}
+	// 初期化
+	if (Effekseer_Init(8000) == -1) {
+		isInitFail_ = true;
+
+		return ;
+	}
+
+	SetUseZBuffer3D(TRUE);
+	SetWriteZBuffer3D(TRUE);
 
 	// 描画先画面を裏にする
 	SetDrawScreen(DX_SCREEN_BACK);
@@ -86,6 +95,9 @@ void Application::Run(void)
 
 void Application::Delete(void)
 {
+	Effkseer_End();
+
+
 	// 入力制御削除
 	InputManager::GetInstance()->DeleteInstance();
 
@@ -95,12 +107,12 @@ void Application::Delete(void)
 
 	// フレームレート解放
 	delete fps_;
-
 	// DxLib終了
 	if (DxLib_End() == -1)
 	{
 		isReleaseFail_ = true;
 	}
+
 }
 
 bool Application::IsInitFail(void) const

@@ -1,42 +1,38 @@
 #pragma once
+#include <DxLib.h>
+#include <vector>
+#include <string>
 
-class Loading
-{
-
+class Loading {
 private:
-	// 最低でもロード画面を表示する時間
-	static constexpr int MIN_LOAD_TIME = 60;	// 60fps(1秒) * x
+    static constexpr int MIN_LOAD_TIME = 90; // 少し長めの1.5秒に設定（Tipsを読ませるため）
 
 public:
-	// デフォルトコンストラクタをprivateにして、
-	// 外部から生成できない様にする
-	Loading();
-	~Loading();
+    Loading();
+    ~Loading();
 
-	void Init(void);		// 初期化
-	void Load(void);		// 読み込み
-	void Update(void);		// 更新
-	void Draw(void);		// 描画
-	void Release(void);		// 解放
+    void Init(void);
+    void Load(void);
+    void Update(void);
+    void Draw(void);
+    void Release(void);
 
-	void StartAsyncLoad(void);	// 非同期ロードの開始
-	void EndAsyncLoad(void);	// 非同期ロードの終了
+    void StartAsyncLoad(void);
+    void EndAsyncLoad(void);
 
-	// ロード中かを返す。
-	bool IsLoading(void) { return isLoading_; }
+    bool IsLoading(void) const { return isLoading_; }
 
 private:
+    int handle_;
+    bool isLoading_;
+    int loadTimer_;
 
-	// 画像ハンドル
-	int handle_;
+    // 演出用の変数
+    float angle_;       // ぐるぐる回るアイコン用
+    int dotCount_;      // "LOADING..." のドット数
+    int initialLoadNum_;// 最初に読み込む総数（進捗計算用）
 
-	// 座標
-	float posX_;	// X座標
-	float posY_;	// Y座標
-
-	// ロード中の判定用
-	bool isLoading_;
-
-	// 最低でもロード画面を表示する時間の範囲
-	int loadTimer_;
+    // Tips管理
+    std::vector<std::string> tips_;
+    int currentTipIdx_;
 };

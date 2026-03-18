@@ -40,6 +40,10 @@ private:
     int s_thunderEffectHandle = -1;
     bool s_thunderEffectTried = false;
 
+    int s_thunderWarningEffectHandle;
+    bool s_thunderWarningEffectTried;
+    std::vector<int> warningEffectPlayHandles_;
+
     // 生成する落雷スポット（予兆時に決定して Execute と共有）
     std::vector<VECTOR> strikePositions_;
     std::vector<int> strikeGridIndices_;
