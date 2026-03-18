@@ -55,6 +55,24 @@
     <Filter Include="Src\Scene\TitleScene">
       <UniqueIdentifier>{efb0ea51-52b0-4d43-9a67-6e1ec8a427b8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Src\Object\Attack\IceAttack">
+      <UniqueIdentifier>{673f1778-1565-4948-a923-c63f8a67e100}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Object\Attack\DarkAttak">
+      <UniqueIdentifier>{aadb64d9-69e7-4d4a-92cd-a6d5504a6d54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Object\Attack\MeteorAttack">
+      <UniqueIdentifier>{de67ff18-0923-4b57-b4da-b7018ef9c9bb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Object\Attack\HealAttack">
+      <UniqueIdentifier>{3be43031-b99c-4674-87b1-7322b4f2cdcb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Object\Attack\SwordAttack">
+      <UniqueIdentifier>{78c16c81-8b0b-4eb6-9e98-bde60896aec8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src\Object\Attack\ThunderAttack">
+      <UniqueIdentifier>{e1a57662-a245-4d58-a8bd-2cff47ad3737}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Src\Camera\Camera.cpp">
@@ -138,7 +156,21 @@
     <ClCompile Include="Src\Scene\ResultScene\ResultWinScene.cpp" />
     <ClCompile Include="Src\Scene\ResultScene\ResultScene.cpp" />
     <ClCompile Include="Src\Common\UiManager.cpp" />
-    <ClCompile Include="Src\Object\Attack\Magic\ThunderAttack.cpp" />
+    <ClCompile Include="IceAttack.cpp">
+      <Filter>Src\Object\Attack\IceAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Attack\Magic\ThunderAttack.cpp">
+      <Filter>Src\Object\Attack\ThunderAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="DarkAttack.cpp">
+      <Filter>Src\Object\Attack\DarkAttak</Filter>
+    </ClCompile>
+    <ClCompile Include="MeteorAttack.cpp">
+      <Filter>Src\Object\Attack\MeteorAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="HealAttack.cpp">
+      <Filter>Src\Object\Attack\HealAttack</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Camera\Camera.h">
@@ -222,6 +254,20 @@
     <ClInclude Include="Src\Scene\ResultScene\ResultWinScene.h" />
     <ClInclude Include="Src\Scene\ResultScene\ResultScene.h" />
     <ClInclude Include="Src\Common\UiManager.h" />
-    <ClInclude Include="Src\Object\Attack\Magic\ThunderAttack.h" />
+    <ClInclude Include="IceAttack.h">
+      <Filter>Src\Object\Attack\IceAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Object\Attack\Magic\ThunderAttack.h">
+      <Filter>Src\Object\Attack\ThunderAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="..\visualstudio\aplication\src\DarkAttack.h">
+      <Filter>Src\Object\Attack\DarkAttak</Filter>
+    </ClInclude>
+    <ClInclude Include="MeteorAttack.h">
+      <Filter>Src\Object\Attack\MeteorAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="HealAttack.h">
+      <Filter>Src\Object\Attack\HealAttack</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
