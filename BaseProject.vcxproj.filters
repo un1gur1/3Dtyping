@@ -71,7 +71,7 @@
       <UniqueIdentifier>{e1a57662-a245-4d58-a8bd-2cff47ad3737}</UniqueIdentifier>
     </Filter>
     <Filter Include="Src\Object\Attack\SwordAttack">
-      <UniqueIdentifier>{7a2f87d0-bb24-4857-932c-52d6a9ebce00}</UniqueIdentifier>
+      <UniqueIdentifier>{fa543ecc-8a6d-4c5e-b395-96bcebd8025b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -156,23 +156,23 @@
     <ClCompile Include="Src\Scene\ResultScene\ResultWinScene.cpp" />
     <ClCompile Include="Src\Scene\ResultScene\ResultScene.cpp" />
     <ClCompile Include="Src\Common\UiManager.cpp" />
-    <ClCompile Include="IceAttack.cpp">
-      <Filter>Src\Object\Attack\IceAttack</Filter>
-    </ClCompile>
     <ClCompile Include="Src\Object\Attack\Magic\ThunderAttack.cpp">
       <Filter>Src\Object\Attack\ThunderAttack</Filter>
     </ClCompile>
-    <ClCompile Include="DarkAttack.cpp">
+    <ClCompile Include="..\visualstudio\aplication\SwordAttack.cpp">
+      <Filter>Src\Object\Attack\SwordAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Attack\DarkAttack\DarkAttack.cpp">
       <Filter>Src\Object\Attack\DarkAttak</Filter>
     </ClCompile>
-    <ClCompile Include="MeteorAttack.cpp">
-      <Filter>Src\Object\Attack\MeteorAttack</Filter>
-    </ClCompile>
-    <ClCompile Include="HealAttack.cpp">
+    <ClCompile Include="Src\Object\Attack\HealAttack\HealAttack.cpp">
       <Filter>Src\Object\Attack\HealAttack</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Object\Attack\SwordAttack\SwordAttack.cpp">
-      <Filter>Src\Object\Attack</Filter>
+    <ClCompile Include="Src\Object\Attack\MeteorAttack\MeteorAttack.cpp">
+      <Filter>Src\Object\Attack\MeteorAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Attack\IceAttack\IceAttack.cpp">
+      <Filter>Src\Object\Attack\IceAttack</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -257,26 +257,23 @@
     <ClInclude Include="Src\Scene\ResultScene\ResultWinScene.h" />
     <ClInclude Include="Src\Scene\ResultScene\ResultScene.h" />
     <ClInclude Include="Src\Common\UiManager.h" />
-    <ClInclude Include="IceAttack.h">
-      <Filter>Src\Object\Attack\IceAttack</Filter>
-    </ClInclude>
     <ClInclude Include="Src\Object\Attack\Magic\ThunderAttack.h">
       <Filter>Src\Object\Attack\ThunderAttack</Filter>
     </ClInclude>
-    <ClInclude Include="..\visualstudio\aplication\src\DarkAttack.h">
+    <ClInclude Include="..\visualstudio\aplication\SwordAttack.h">
+      <Filter>Src\Object\Attack\SwordAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Object\Attack\DarkAttack\DarkAttack.h">
       <Filter>Src\Object\Attack\DarkAttak</Filter>
     </ClInclude>
-    <ClInclude Include="MeteorAttack.h">
-      <Filter>Src\Object\Attack\MeteorAttack</Filter>
-    </ClInclude>
-    <ClInclude Include="HealAttack.h">
+    <ClInclude Include="Src\Object\Attack\HealAttack\HealAttack.h">
       <Filter>Src\Object\Attack\HealAttack</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Object\Attack\SwordAttack\SwordAttack.h">
-      <Filter>Src\Object\Attack</Filter>
+    <ClInclude Include="Src\Object\Attack\MeteorAttack\MeteorAttack.h">
+      <Filter>Src\Object\Attack\MeteorAttack</Filter>
     </ClInclude>
-    <ClInclude Include="SwordAttack.h">
-      <Filter>Src\Object\Attack\SwordAttack</Filter>
+    <ClInclude Include="Src\Object\Attack\IceAttack\IceAttack.h">
+      <Filter>Src\Object\Attack\IceAttack</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

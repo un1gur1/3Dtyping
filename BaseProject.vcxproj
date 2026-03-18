@@ -19,11 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DarkAttack.cpp" />
-    <ClCompile Include="HealAttack.cpp" />
-    <ClCompile Include="IceAttack.cpp" />
-    <ClCompile Include="MeteorAttack.cpp" />
-    <ClCompile Include="Src\Object\Attack\SwordAttack\SwordAttack.cpp" />
+    <ClCompile Include="..\visualstudio\aplication\SwordAttack.cpp" />
+    <ClCompile Include="Src\Object\Attack\DarkAttack\DarkAttack.cpp" />
+    <ClCompile Include="Src\Object\Attack\HealAttack\HealAttack.cpp" />
+    <ClCompile Include="Src\Object\Attack\IceAttack\IceAttack.cpp" />
+    <ClCompile Include="Src\Object\Attack\MeteorAttack\MeteorAttack.cpp" />
     <ClCompile Include="Src\Scene\ResultScene\ResultWinScene.cpp" />
     <ClCompile Include="Src\Scene\ResultScene\ResultScene.cpp" />
     <ClCompile Include="Src\Application.cpp" />
@@ -56,11 +56,11 @@
     <ClCompile Include="Src\Object\Attack\Magic\ThunderAttack.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\visualstudio\aplication\src\DarkAttack.h" />
-    <ClInclude Include="HealAttack.h" />
-    <ClInclude Include="IceAttack.h" />
-    <ClInclude Include="MeteorAttack.h" />
-    <ClInclude Include="Src\Object\Attack\SwordAttack\SwordAttack.h" />
+    <ClInclude Include="..\visualstudio\aplication\SwordAttack.h" />
+    <ClInclude Include="Src\Object\Attack\DarkAttack\DarkAttack.h" />
+    <ClInclude Include="Src\Object\Attack\HealAttack\HealAttack.h" />
+    <ClInclude Include="Src\Object\Attack\IceAttack\IceAttack.h" />
+    <ClInclude Include="Src\Object\Attack\MeteorAttack\MeteorAttack.h" />
     <ClInclude Include="Src\Scene\ResultScene\ResultWinScene.h" />
     <ClInclude Include="Src\Scene\ResultScene\ResultScene.h" />
     <ClInclude Include="Src\Object\Attack\RangedAttack\RangedAttack.h" />
@@ -91,7 +91,6 @@
     <ClInclude Include="Src\Object\Attack\UltimateAttack\UltimateAttack.h" />
     <ClInclude Include="Src\Common\UiManager.h" />
     <ClInclude Include="Src\Object\Attack\Magic\ThunderAttack.h" />
-    <ClInclude Include="SwordAttack.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
