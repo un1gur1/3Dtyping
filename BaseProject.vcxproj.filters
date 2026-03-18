@@ -71,7 +71,7 @@
       <UniqueIdentifier>{e1a57662-a245-4d58-a8bd-2cff47ad3737}</UniqueIdentifier>
     </Filter>
     <Filter Include="Src\Object\Attack\SwordAttack">
-      <UniqueIdentifier>{fa543ecc-8a6d-4c5e-b395-96bcebd8025b}</UniqueIdentifier>
+      <UniqueIdentifier>{85b6b0ca-4b25-40bd-9094-e68c358780b5}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -159,9 +159,6 @@
     <ClCompile Include="Src\Object\Attack\Magic\ThunderAttack.cpp">
       <Filter>Src\Object\Attack\ThunderAttack</Filter>
     </ClCompile>
-    <ClCompile Include="..\visualstudio\aplication\SwordAttack.cpp">
-      <Filter>Src\Object\Attack\SwordAttack</Filter>
-    </ClCompile>
     <ClCompile Include="Src\Object\Attack\DarkAttack\DarkAttack.cpp">
       <Filter>Src\Object\Attack\DarkAttak</Filter>
     </ClCompile>
@@ -173,6 +170,9 @@
     </ClCompile>
     <ClCompile Include="Src\Object\Attack\IceAttack\IceAttack.cpp">
       <Filter>Src\Object\Attack\IceAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Object\Attack\SwordAttack\SwordAttack.cpp">
+      <Filter>Src\Object\Attack\SwordAttack</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -260,9 +260,6 @@
     <ClInclude Include="Src\Object\Attack\Magic\ThunderAttack.h">
       <Filter>Src\Object\Attack\ThunderAttack</Filter>
     </ClInclude>
-    <ClInclude Include="..\visualstudio\aplication\SwordAttack.h">
-      <Filter>Src\Object\Attack\SwordAttack</Filter>
-    </ClInclude>
     <ClInclude Include="Src\Object\Attack\DarkAttack\DarkAttack.h">
       <Filter>Src\Object\Attack\DarkAttak</Filter>
     </ClInclude>
@@ -274,6 +271,9 @@
     </ClInclude>
     <ClInclude Include="Src\Object\Attack\IceAttack\IceAttack.h">
       <Filter>Src\Object\Attack\IceAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Object\Attack\SwordAttack\SwordAttack.h">
+      <Filter>Src\Object\Attack\SwordAttack</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
