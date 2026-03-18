@@ -10,6 +10,11 @@ public:
 		IDLE,
 		ATTACK_NEAR,
 		ATTACK_RANGE,
+		ICE,
+		DARK,
+		HEAL,
+		SWORD,
+		METEOR,
 		ULTIMATE,
 		STUN
 	};

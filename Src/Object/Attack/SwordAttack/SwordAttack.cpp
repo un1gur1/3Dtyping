@@ -18,7 +18,19 @@ void SwordAttack::Draw() {
 	VECTOR p2 = pos_;
 	p2.x += 30.0f; // 向きに合わせて調整してください
 	DrawLine3D(p1, p2, GetColor(220, 220, 255));
-	DrawBox3D({ p1.x, p1.y - 4.0f, p1.z }, { p2.x, p2.y + 4.0f, p2.z }, GetColor(200, 200, 255), TRUE);
+}
+
+void SwordAttack::DrawWarning() {
+	// ワーニング表示（XZ平面に十字を描画）
+	const float r = 60.0f;
+	VECTOR p = pos_;
+	VECTOR a = { p.x - r, p.y, p.z - r };
+	VECTOR b = { p.x + r, p.y, p.z + r };
+	VECTOR c = { p.x - r, p.y, p.z + r };
+	VECTOR d = { p.x + r, p.y, p.z - r };
+	int col = GetColor(255, 120, 120);
+	DrawLine3D(a, b, col);
+	DrawLine3D(c, d, col);
 }
 
 void SwordAttack::Execute() {

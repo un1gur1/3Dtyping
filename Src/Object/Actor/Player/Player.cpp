@@ -1,41 +1,42 @@
 ﻿#include "Player.h"
 
-#include<DxLib.h>
+#include <DxLib.h>
 #include <random> 
 #include <fstream>
 #include <sstream>
-#include <unordered_map>
-#include <string>
-#include <vector>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
 #include <cctype>
 
+#include "../../../Common/RomanjiConverter.h"
 #include "../../../Application.h"
 #include "../../../Input/InputManager.h"
 #include "../../../Utility/AsoUtility.h"
 #include "../../../Utility/MatrixUtility.h"
 #include "../../Common/AnimationController.h"
-#include"../../Attack/AttackManager.h"
+#include "../../Attack/AttackManager.h"
 #include "../../Attack/RangedAttack/RangedAttack.h"
 #include "../../Attack/Magic/ThunderAttack.h"
 #include "../../Attack/UltimateAttack/UltimateAttack.h"
-
 #include "../../../Camera/Camera.h"
-
 #include "../../../Common/UiManager.h"
 
-// TitleScene と同等の正規化ヘルパーをローカルに追加
+// 追加インクルード：新しい攻撃クラス
+#include "../../Attack/DarkAttack/DarkAttack.h"
+#include "../../Attack/HealAttack/HealAttack.h"
+#include "../../Attack/MeteorAttack/MeteorAttack.h"
+#include "../../Attack/SwordAttack/SwordAttack.h"
+
+// =======================================================
+// 正規化ヘルパー（無名名前空間）
+// =======================================================
 namespace {
 	static bool IsLikelyRomanji(const std::string& s) {
 		if (s.empty()) return false;
 		bool hasAlpha = false;
 		for (unsigned char c : s) {
-			// 全角文字（既に日本語化されている文字）が含まれていたら変換をキャンセル
 			if (c >= 128) return false;
-
-			// 半角英字が含まれているかチェック
 			if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
 				hasAlpha = true;
 			}
@@ -81,10 +82,10 @@ namespace {
 		return t;
 	}
 }
+// =======================================================
 
-Player::Player(Camera* camera)
+Player::Player(Camera* camera) : camera_(camera)
 {
-	camera_ = camera;
 }
 
 Player::~Player(void)
@@ -104,15 +105,12 @@ Player::CommandType Player::StringToCommandType(const std::string& str)
 	if (str == "DODGE") return CommandType::DODGE;
 	if (str == "MOVE_RANDOM") return CommandType::MOVE_RANDOM;
 	if (str == "SHOOT") return CommandType::SHOOT;
-	if (str == "MOVE") return CommandType::MOVE;
 	if (str == "ATTACK") return CommandType::ATTACK;
 	return CommandType::UNKNOWN;
 }
 
-
 void Player::InitLoad(void)
 {
-	// モデルの読み込み
 	modelId_ = MV1LoadModel((Application::PATH_MODEL + "Player/Player.mv1").c_str());
 	LoadMoveWordDict("Data/CSV/Word.csv");
 
@@ -120,98 +118,60 @@ void Player::InitLoad(void)
 	SetActiveKeyInput(keyInputHandle_);
 	isInputActive_ = true;
 	inputBuf_[0] = '\0';
-	hiraText_.clear();
-	romanjiConverter_.clear();
-	isFirstInputFrame_ = true;
 }
 
 void Player::InitTransform(void)
 {
-
 	logicPos_ = { 0.0f, 0.0f, 0.0f };
 	drawPos_ = logicPos_;
 	gridPos_ = { 0, 0 };
 	targetGridPos_ = gridPos_;
-	// モデルの角度
+
 	angle_ = { 0.0f, 0.0f, 0.0f };
 	localAngle_ = { 0.0f, AsoUtility::Deg2RadF(180.0f), 0.0f };
 
-	// 角度から方向に変換する
 	moveDir_ = { sinf(angle_.y), 0.0f, cosf(angle_.y) };
 	preInputDir_ = moveDir_;
 
-	// 行列の合成(子, 親と指定すると親⇒子の順に適用される)
 	MATRIX mat = MatrixUtility::Multiplication(localAngle_, angle_);
-
-	// 回転行列をモデルに反映
 	MV1SetRotationMatrix(modelId_, mat);
 
-	// モデルの位置設定
 	pos_ = AsoUtility::VECTOR_ZERO;
 	MV1SetPosition(modelId_, pos_);
 
-	// 当たり判定を作成
-	startCapsulePos_ = { 0.0f,110,0.0f };
-	endCapsulePos_ = { 0.0f,30.0f,0.0f };
+	startCapsulePos_ = { 0.0f, 110.0f, 0.0f };
+	endCapsulePos_ = { 0.0f, 30.0f, 0.0f };
 	capsuleRadius_ = 20.0f;
-
-	// 当たり判定を取るか
 	isCollision_ = true;
-
-
 }
 
 void Player::InitAnimation(void)
 {
-	// モデルアニメーション制御の初期化
 	animationController_ = new AnimationController(modelId_);
 
-	// アニメーションの追加
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::IDLE), 0.5f, Application::PATH_MODEL + "Player/Idle.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::WALK), 0.4f, Application::PATH_MODEL + "Player/FastRun.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::ATTACK2), 0.4f, Application::PATH_MODEL + "Player/Attack2.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::ATTACK3), 0.4f, Application::PATH_MODEL + "Player/Attack3.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::BOXING), 0.4f, Application::PATH_MODEL + "Player/Boxing.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::FALLING), 0.4f, Application::PATH_MODEL + "Player/Falling.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::FLYING), 0.4f, Application::PATH_MODEL + "Player/Flying.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::JUMP), 0.4f, Application::PATH_MODEL + "Player/Jump.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::JUMP_ATTACK), 0.4f, Application::PATH_MODEL + "Player/JumpAttack.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::JUMP_HOVER), 0.4f, Application::PATH_MODEL + "Player/JumpHover.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::JUMPING), 0.4f, Application::PATH_MODEL + "Player/Jumping.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::JUMP_RISING), 0.4f, Application::PATH_MODEL + "Player/JumpRising.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::SHOT), 0.4, Application::PATH_MODEL + "Player/Shot.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::THROW), 0.4f, Application::PATH_MODEL + "Player/Throw.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::VICTORY), 0.4f, Application::PATH_MODEL + "Player/Victory.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::WALK_LOOP), 0.4f, Application::PATH_MODEL + "Player/Walk.mv1");
-	animationController_->Add(
-		static_cast<int>(ANIM_TYPE::WARP_POSE), 0.4f, Application::PATH_MODEL + "Player/WarpPose.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::IDLE), 0.5f, Application::PATH_MODEL + "Player/Idle.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::WALK), 0.4f, Application::PATH_MODEL + "Player/FastRun.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::ATTACK2), 0.4f, Application::PATH_MODEL + "Player/Attack2.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::ATTACK3), 0.4f, Application::PATH_MODEL + "Player/Attack3.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::BOXING), 0.4f, Application::PATH_MODEL + "Player/Boxing.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::FALLING), 0.4f, Application::PATH_MODEL + "Player/Falling.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::FLYING), 0.4f, Application::PATH_MODEL + "Player/Flying.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::JUMP), 0.4f, Application::PATH_MODEL + "Player/Jump.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::JUMP_ATTACK), 0.4f, Application::PATH_MODEL + "Player/JumpAttack.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::JUMP_HOVER), 0.4f, Application::PATH_MODEL + "Player/JumpHover.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::JUMPING), 0.4f, Application::PATH_MODEL + "Player/Jumping.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::JUMP_RISING), 0.4f, Application::PATH_MODEL + "Player/JumpRising.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::SHOT), 0.4f, Application::PATH_MODEL + "Player/Shot.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::THROW), 0.4f, Application::PATH_MODEL + "Player/Throw.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::VICTORY), 0.4f, Application::PATH_MODEL + "Player/Victory.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::WALK_LOOP), 0.4f, Application::PATH_MODEL + "Player/Walk.mv1");
+	animationController_->Add(static_cast<int>(ANIM_TYPE::WARP_POSE), 0.4f, Application::PATH_MODEL + "Player/WarpPose.mv1");
 
-
-
-	// 初期アニメーションの再生
 	animationController_->Play(static_cast<int>(ANIM_TYPE::IDLE));
 }
 
 void Player::InitPost(void)
 {
-
-	// カメラに自分を追従させる
 	if (camera_) {
 		camera_->SetFollow(this);
 	}
@@ -221,27 +181,16 @@ void Player::Update(void)
 {
 	ActorBase::Update();
 
-	// ==========================================
-	// UI描画用の文字列を正規化関数を使って用意
-	// ==========================================
-	// 現在入力中の文字列
 	std::string inputStr(inputBuf_);
 	std::string hiraText = ConvertIfRomanji(inputStr);
 
-	// 直前の入力文字列
 	std::string prevInputStr = inputText_;
 	std::string prevHiraText = ConvertIfRomanji(prevInputStr);
 
-	UIManager::GetInstance().SetTypingStrings(
-		inputStr,
-		hiraText,
-		prevInputStr,
-		prevHiraText
-	);
+	UIManager::GetInstance().SetTypingStrings(inputStr, hiraText, prevInputStr, prevHiraText);
 
 	// --- 必殺技コマンド登録モード ---
 	if (!isRegisteringUltimate_) {
-		// F1で登録モード開始
 		if (CheckHitKey(KEY_INPUT_F1)) {
 			isRegisteringUltimate_ = true;
 			registerKeyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
@@ -250,12 +199,9 @@ void Player::Update(void)
 		}
 	}
 	else {
-		// 入力受付中
 		GetKeyInputString(registerInputBuf_, registerKeyInputHandle_);
 
-		// Enterで登録
 		if (CheckKeyInput(registerKeyInputHandle_) == 1) {
-			// 例外対策：処理前に生データを退避してキー入力をリセット
 			std::string raw(registerInputBuf_);
 
 			DeleteKeyInput(registerKeyInputHandle_);
@@ -268,27 +214,14 @@ void Player::Update(void)
 			inputBuf_[0] = '\0';
 
 			if (attackManager_ && !raw.empty()) {
-				// ここで必ず正規化（小文字トリム→ローマ字判定→ひらがな化）
 				std::string commandStr = ConvertIfRomanji(ToLowerTrim(raw));
 
 				std::string commandId = attackManager_->RegisterUltimateCommand(commandStr, 5);
 				attackManager_->ReloadCommands();
-
-				// コマンドIDでデータを取得
-				auto it = attackManager_->ultimateCommandDataMap_.find(commandId);
-				if (it != attackManager_->ultimateCommandDataMap_.end()) {
-					const auto& data = it->second;
-					printfDx("登録: %s, ID: %s, ダメージ: %d, 速度: %.1f\n",
-						commandStr.c_str(), commandId.c_str(), data.damage, data.speed);
-				}
-				else {
-					printfDx("登録: %s, ID: %s\n", commandStr.c_str(), commandId.c_str());
-				}
 			}
-			return; // 登録完了したらこのフレームは終了
+			return;
 		}
 
-		// Escでキャンセル
 		if (CheckHitKey(KEY_INPUT_ESCAPE)) {
 			DeleteKeyInput(registerKeyInputHandle_);
 			SetActiveKeyInput(-1);
@@ -302,35 +235,31 @@ void Player::Update(void)
 		return;
 	}
 
-	int gridIdx_ = AttackBase::CalcGridIndex(pos_, true);
 	// グリッド移動処理
 	if (isMovingOnGrid_) {
-		// 目標グリッド座標をワールド座標に変換
 		VECTOR targetLogicPos = {
 			targetGridPos_.x * gridSize_,
 			0.0f,
 			targetGridPos_.z * gridSize_
 		};
 
-		// --- 進行方向を計算し、Y軸回転角を更新 ---
 		VECTOR diff = {
 			targetLogicPos.x - logicPos_.x,
 			0.0f,
 			targetLogicPos.z - logicPos_.z
 		};
-		// atan2(進行方向z, 進行方向x) だとX軸基準なので、Z軸基準に合わせる
+
 		if (diff.x != 0.0f || diff.z != 0.0f) {
 			angle_.y = atan2f(diff.x, diff.z);
 		}
 
-		// 線形補間でゆっくり移動
-		float speed = 10.0f; // 1フレームの移動量
+		float speed = 10.0f;
 		float dist = sqrtf(diff.x * diff.x + diff.z * diff.z);
 		if (dist < speed) {
 			logicPos_.x = targetLogicPos.x;
 			logicPos_.z = targetLogicPos.z;
 			gridPos_ = targetGridPos_;
-			isMovingOnGrid_ = false; // 到着
+			isMovingOnGrid_ = false;
 		}
 		else {
 			logicPos_.x += diff.x / dist * speed;
@@ -341,20 +270,15 @@ void Player::Update(void)
 	// アニメーションの更新
 	animationController_->Update();
 
-
-	// 攻撃アニメーション中は他のアニメーションを再生しない
 	if (isAttacking_) {
-		// 攻撃アニメーション開始時のみ再生指示
 		if (animationController_->GetPlayType() != static_cast<int>(ANIM_TYPE::SHOT)) {
-			animationController_->Play(static_cast<int>(ANIM_TYPE::SHOT), false); // ループしない
+			animationController_->Play(static_cast<int>(ANIM_TYPE::SHOT), false);
 		}
-		// アニメーションが終了したら攻撃状態解除
 		if (animationController_->IsEnd()) {
 			isAttacking_ = false;
 		}
 	}
 	else {
-		// 通常のアニメーション制御
 		if (isMovingOnGrid_) {
 			animationController_->Play(static_cast<int>(ANIM_TYPE::WALK));
 		}
@@ -362,32 +286,26 @@ void Player::Update(void)
 			animationController_->Play(static_cast<int>(ANIM_TYPE::IDLE));
 		}
 	}
-	// 進行方向にモデルを回転させる
+
 	MATRIX mat = MatrixUtility::Multiplication(localAngle_, angle_);
 	MV1SetRotationMatrix(modelId_, mat);
 
 	pos_ = logicPos_;
 }
 
-
-
 void Player::Draw(void)
 {
 	ActorBase::Draw();
-
-
 }
-
-
-
-
-
 
 void Player::Release(void)
 {
 	ActorBase::Release();
 }
 
+// =======================================================
+// CSV読み込み（ゲーム開始時に1度だけ読み、辞書に記憶）
+// =======================================================
 void Player::LoadMoveWordDict(const std::string& path)
 {
 	std::ifstream file(path);
@@ -395,30 +313,100 @@ void Player::LoadMoveWordDict(const std::string& path)
 	while (std::getline(file, line)) {
 		std::istringstream iss(line);
 		std::string word, typeStr;
-		if (std::getline(iss, word, ',') &&
-			std::getline(iss, typeStr, ',')) {
-			// 正規化してキーとして登録（小文字化＋トリム→ローマ字判定→ひらがな化）
+		if (std::getline(iss, word, ',') && std::getline(iss, typeStr, ',')) {
 			std::string lower = ToLowerTrim(word);
 			std::string key = ConvertIfRomanji(lower);
+			std::string ttype = ToLowerTrim(typeStr);
 
 			CommandType type = StringToCommandType(typeStr);
 			commandMap_[key] = type;
+			magicTypeMap_[key] = ttype; // 魔法属性も記憶
 		}
 	}
 }
 
+// =======================================================
+// 完全統一：すべての攻撃・魔法を生成する処理
+// =======================================================
+void Player::ExecuteMagic(const std::string& magicType, int damage, float speed)
+{
+	VECTOR pos = GetPos();
+	VECTOR vel = { 0.0f, 0.0f, speed };
+	AttackBase* newAttack = nullptr;
+
+	if (magicType == "dark") {
+		newAttack = new DarkAttack(-1, true, vel, 1.0f, damage, this);
+		newAttack->SetPos(pos);
+	}
+	else if (magicType == "heal") {
+		newAttack = new HealAttack(-1, true, vel, 1.0f, damage, this);
+		newAttack->SetPos(pos);
+	}
+	else if (magicType == "meteor") {
+		VECTOR mpos = pos;
+		mpos.y += 600.0f;
+		newAttack = new MeteorAttack(-1, true, vel, 2.0f, damage, this);
+		newAttack->SetPos(mpos);
+	}
+	else if (magicType == "sword") {
+		VECTOR spos = pos;
+		spos.z += 120.0f;
+		newAttack = new SwordAttack(-1, true, vel, 0.6f, damage, this);
+		newAttack->SetPos(spos);
+	}
+	else if (magicType == "ice") {
+		// ※IceAttackクラスを作成したらここを書き換えてください
+		newAttack = new ThunderAttack(-1, true, vel, 1.5f, damage, this);
+		newAttack->SetPos(pos);
+	}
+	else if (magicType == "shoot" || magicType == "thunder") {
+		if (enemyList_ && !enemyList_->empty()) {
+			for (auto* actor : *enemyList_) {
+				if (actor && actor->IsEnemy()) {
+					VECTOR epos = actor->GetPos();
+					epos.y += 150.0f;
+					vel = { 0.0f, -100.0f, 0.0f };
+					int gridIdx = AttackBase::CalcGridIndex(epos, false);
+					newAttack = new ThunderAttack(gridIdx, true, vel, 2.0f, damage, this);
+					newAttack->SetPos(epos);
+					break; // 最初の敵に落とす
+				}
+			}
+		}
+	}
+	else if (magicType == "attack" || magicType == "ranged") {
+		VECTOR rpos = pos;
+		rpos.y += 80.0f;
+		rpos.z += 160.0f;
+		newAttack = new RangedAttack(-1, true, vel, 3.0f, damage, this);
+		newAttack->SetPos(rpos);
+	}
+	else {
+		// デフォルト：究極魔法
+		newAttack = new UltimateAttack(-1, true, vel, 1.0f, damage, this);
+		newAttack->SetPos(pos);
+	}
+
+	// 攻撃をマネージャーに登録
+	if (newAttack && attackManager_) {
+		attackManager_->Add(newAttack);
+		Application::GetInstance()->ShakeScreen(40, 40, true, true);
+		isAttacking_ = true;
+	}
+}
+
+// =======================================================
+// 移動・コマンド入力受付（攻撃は ExecuteMagic に一任）
+// =======================================================
 void Player::Move(void)
 {
-	// 入力中
 	if (isInputActive_) {
 		GetKeyInputString(inputBuf_, keyInputHandle_);
 
-		// 入力確定（Enterキー押下）
 		if (CheckKeyInput(keyInputHandle_) == 1) {
 
-			// 1. まず生の文字列を確保して、入力窓はすぐにクリアする（例外防止）
 			std::string rawInput(inputBuf_);
-			inputText_ = rawInput; // 直前入力として保存
+			inputText_ = rawInput;
 
 			DeleteKeyInput(keyInputHandle_);
 			keyInputHandle_ = MakeKeyInput(127, FALSE, FALSE, FALSE, FALSE);
@@ -427,13 +415,11 @@ void Player::Move(void)
 
 			if (rawInput.empty()) return;
 
-			// 2. ★ TitleSceneと全く同じ正規化（小文字化＆ひらがな化）
 			std::string commandKey = ConvertIfRomanji(ToLowerTrim(rawInput));
 
-			// 3. 必殺技リストから検索（必殺技優先）
+			// 1. 必殺技リスト(Ultimate.csv)から検索
 			std::string commandId;
 			for (const auto& pair : attackManager_->registeredCommands_) {
-				// TitleSceneで登録時にひらがな化されているので、そのまま一致する！
 				if (pair.first == commandKey) {
 					commandId = pair.second;
 					break;
@@ -441,32 +427,36 @@ void Player::Move(void)
 			}
 
 			if (!commandId.empty()) {
-				// 必殺技発動
 				auto itUltimate = attackManager_->ultimateCommandDataMap_.find(commandId);
 				if (itUltimate != attackManager_->ultimateCommandDataMap_.end()) {
 					const auto& data = itUltimate->second;
-					VECTOR pos = GetPos();
-					VECTOR vel = { 0, 0, data.speed };
-					auto ultimate = new UltimateAttack(
-						-1,         // targetGridIdx
-						true,       // isPlayer
-						vel,        // 速度
-						1.0f,       // lifeTime
-						data.damage,// ダメージ
-						this        // 発射者
-					);
-					Application::GetInstance()->ShakeScreen(40, 40, true, true);
-					ultimate->SetPos(pos); // 発射位置を明示的に設定
-					attackManager_->Add(ultimate);
-					isAttacking_ = true;
+
+					// ★修正ポイント1：Ultimate.csvに「ICE」などと書いた場合、それをそのまま属性にする！
+					std::string typeLower = ToLowerTrim(commandId);
+
+					auto itMagic = magicTypeMap_.find(commandKey);
+					if (itMagic != magicTypeMap_.end() && !itMagic->second.empty()) {
+						typeLower = itMagic->second; // Word.csv にも登録があればそっちを優先
+					}
+
+					// 魔法発動！
+					ExecuteMagic(typeLower, data.damage, data.speed);
 				}
-				return; // 必殺技が出たらここで終了（通常コマンドは無視）
+				return;
 			}
 
-			// 4. 通常コマンドリストから検索
+			// 2. 通常コマンドリスト(Word.csv)から検索
 			auto it = commandMap_.find(commandKey);
 			if (it != commandMap_.end()) {
 				CommandType type = it->second;
+
+	
+				if (type == CommandType::UNKNOWN) {
+					std::string mType = magicTypeMap_[commandKey];
+					// CSVにダメージ列がないので、仮でダメージ20・速度10として渡す
+					ExecuteMagic(mType, 20, 10.0f);
+					return;
+				}
 
 				switch (type) {
 				case CommandType::MOVE_UP:
@@ -508,75 +498,13 @@ void Player::Move(void)
 					MoveToGrid(next);
 				}
 				break;
+
 				case CommandType::SHOOT:
-
-					if (attackManager_ && enemyList_ && !enemyList_->empty()) {
-						// 最初に見つかった敵をターゲット
-						ActorBase* targetEnemy = nullptr;
-						for (auto* actor : *enemyList_) {
-							if (actor && actor->IsEnemy()) {
-								targetEnemy = actor;
-								break;
-							}
-						}
-						if (targetEnemy) {
-							VECTOR pos = targetEnemy->GetPos();
-							pos.y += 150.0f; // 敵の頭上
-							VECTOR vel = { 0.0f, -100.0f, 0.0f };
-							int gridIdx = AttackBase::CalcGridIndex(pos, false);
-
-							auto thunder = new ThunderAttack(
-								gridIdx,
-								true,      // isPlayer
-								vel,
-								2.0f,      // lifeTime
-								10,        // damage
-								this
-							);
-							thunder->SetPos(pos);
-							attackManager_->Add(thunder);
-
-							isBulletFired_ = true;
-							isAttacking_ = true;
-						}
-					}
+					ExecuteMagic("shoot", 10, 10.0f);
 					break;
 				case CommandType::ATTACK:
-					if (attackManager_) {
-						VECTOR pos = GetPos();
-						pos.y += 80;
-						pos.z += 160; // += 60 + 100
-						VECTOR vel = { 0, 0, 10 };
-						auto ranged = new RangedAttack(
-							-1,
-							true,
-							vel,
-							3.0f,
-							5,
-							this
-						);
-						ranged->SetPos(pos);
-						attackManager_->Add(ranged);
-
-						isBulletFired_ = true;
-						isAttacking_ = true;
-					}
+					ExecuteMagic("attack", 5, 10.0f);
 					break;
-
-				case CommandType::MOVE:
-				{
-					// moveWordDict_ で座標取得して移動
-					auto it2 = moveWordDict_.find(commandKey);
-					if (it2 != moveWordDict_.end()) {
-						int dx = it2->second.first;
-						int dz = it2->second.second;
-						GridPos next = gridPos_;
-						next.x += dx;
-						next.z += dz;
-						MoveToGrid(next);
-					}
-				}
-				break;
 				default:
 					break;
 				}
@@ -584,22 +512,17 @@ void Player::Move(void)
 		}
 	}
 }
-
 void Player::ApplyDamage(int damage) {
 	hp_ -= damage;
 	if (hp_ < 0) hp_ = 0;
-	// プレイヤー用の追加処理（例：エフェクト、SEなど）
 }
 
 void Player::AddStun(int value) {
 	stunGauge_ += value;
 	if (stunGauge_ > maxStunGauge_) stunGauge_ = maxStunGauge_;
-	// プレイヤー用の追加処理
 }
 
 void Player::OnStunned() {
-	// プレイヤーがひるんだ時の処理
-	// 例：操作不能にする、エフェクト再生など
 }
 
 bool Player::IsDead() const {
@@ -617,7 +540,7 @@ ActorBase::ActorState Player::GetState() const {
 std::vector<std::string> Player::GetNormalCommandNames() const {
 	std::vector<std::string> names;
 	for (const auto& pair : commandMap_) {
-		names.push_back(pair.first); // コマンド名
+		names.push_back(pair.first);
 	}
 	return names;
 }

@@ -9,5 +9,8 @@ public:
 
 	void Update() override;
 	void Draw() override;
+	void DrawWarning() override; // ’Ç‰Á
 	void Execute() override;
+
+	BulletType GetBulletType() const override { return BulletType::PLAYER; } // ’Ç‰Á
 };

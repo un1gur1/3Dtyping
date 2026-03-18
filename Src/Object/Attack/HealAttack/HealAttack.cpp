@@ -15,6 +15,19 @@ void HealAttack::Draw() {
 	DrawSphere3D(pos_, 20.0f, 12, GetColor(120, 255, 160), GetColor(180, 255, 200), TRUE);
 }
 
+void HealAttack::DrawWarning() {
+	// ワーニング表示：緑の円または十字
+	const float r = 60.0f;
+	VECTOR p = pos_;
+	VECTOR a = { p.x - r, p.y, p.z - r };
+	VECTOR b = { p.x + r, p.y, p.z + r };
+	VECTOR c = { p.x - r, p.y, p.z + r };
+	VECTOR d = { p.x + r, p.y, p.z - r };
+	int col = GetColor(120, 220, 140);
+	DrawLine3D(a, b, col);
+	DrawLine3D(c, d, col);
+}
+
 void HealAttack::Execute() {
 	// 発射者を回復する例
 	if (shooter_) {

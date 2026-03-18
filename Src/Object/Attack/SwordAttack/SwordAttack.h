@@ -8,5 +8,8 @@ public:
 
 	void Update() override;
 	void Draw() override;
+	void DrawWarning() override; 
 	void Execute() override;
+
+	BulletType GetBulletType() const override { return BulletType::PLAYER; } 
 };
