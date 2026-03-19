@@ -2,8 +2,8 @@
 #include "../../Common/UiManager.h"
 #include "../../Common/Grid.h"
 // コンストラクタ
-AttackBase::AttackBase(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
-    : targetGridIdx_(targetGridIdx), isPlayer_(isPlayer), vel_(velocity), lifeTime_(lifeTime), damage_(damage), isAlive_(true), shooter_(shooter)
+AttackBase::AttackBase(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter,float delayTimer_)
+	: targetGridIdx_(targetGridIdx), isPlayer_(isPlayer), vel_(velocity), lifeTime_(lifeTime), damage_(damage), isAlive_(true), shooter_(shooter), delayTimer_(delayTimer_)
 {
     // グリッド中心座標から初期位置を取得
     pos_ = Grid::GetWorldPosFromIndex(targetGridIdx_,isPlayer_);

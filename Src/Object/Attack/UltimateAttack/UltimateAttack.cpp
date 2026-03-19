@@ -1,8 +1,8 @@
 #include "UltimateAttack.h"
 #include <DxLib.h>
 
-UltimateAttack::UltimateAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
-    : AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter)
+UltimateAttack::UltimateAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter,float delayTimer_)
+    : AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter, delayTimer_)
 {
 
 

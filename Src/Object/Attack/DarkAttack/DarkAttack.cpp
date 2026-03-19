@@ -1,34 +1,49 @@
 #include "DarkAttack.h"
 #include <DxLib.h>
+#include <cmath>
+#include "../../../Common/EffectManager.h" 
 
-DarkAttack::DarkAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
-	: AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter)
+DarkAttack::DarkAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter, float delayTime)
+	: AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter, delayTime)
 {
+	EffectManager::GetInstance().Load("dark", "Data/Image/efe3/dark.efk");
 }
 
 void DarkAttack::Update() {
+	if (!isAlive_) return;
+
+	// 1. 予兆待機
+	if (delayTimer_ > 0.0f) {
+		if (!warningPlayed_) warningPlayed_ = true;
+		delayTimer_ -= 1.0f / 60.0f;
+		return;
+	}
+
+	// 2. 本発動
+	if (!attackExecuted_) {
+		Execute();
+		attackExecuted_ = true;
+	}
+
+	// 3. 移動
 	AttackBase::Update();
-	// 闇らしい揺らぎや追尾ロジックを追加可能
+
+	// 4. エフェクト追従
+	if (effectPlayingId_ != -1) {
+		EffectManager::GetInstance().SetPos(effectPlayingId_, pos_);
+	}
 }
 
-void DarkAttack::Draw() {
-	// 暗めの紫色で表現
-	DrawSphere3D(pos_, 24.0f, 12, GetColor(80, 40, 120), GetColor(120, 70, 160), TRUE);
-}
-
-void DarkAttack::DrawWarning() {
-	// ワーニング表示：暗色の同心十字（XZ平面）
-	const float r = 70.0f;
-	VECTOR p = pos_;
-	VECTOR a = { p.x - r, p.y, p.z };
-	VECTOR b = { p.x + r, p.y, p.z };
-	VECTOR c = { p.x, p.y, p.z - r };
-	VECTOR d = { p.x, p.y, p.z + r };
-	int col = GetColor(140, 80, 180);
-	DrawLine3D(a, b, col);
-	DrawLine3D(c, d, col);
-}
+void DarkAttack::Draw() {}
+void DarkAttack::DrawWarning() {}
 
 void DarkAttack::Execute() {
-	// 例: 通常ダメージに加えて視界低下などの副作用を与えるフックを呼ぶ
+	effectPlayingId_ = EffectManager::GetInstance().Play("dark", pos_);
+	EffectManager::GetInstance().SetScale(effectPlayingId_, 35.0f); // 闇は少し大きく
+
+	// 飛んでいく方向へ回転
+	if (vel_.x != 0.0f || vel_.z != 0.0f) {
+		float angleY = atan2f(vel_.x, vel_.z);
+		EffectManager::GetInstance().SetRotation(effectPlayingId_, VGet(0.0f, angleY, 0.0f));
+	}
 }

@@ -3,174 +3,151 @@
 #include <DxLib.h>
 #include <random>
 #include <algorithm>
-#include <cstdio>
-#include "EffekseerForDXLib.h"
 #include "../../Actor/Player/Player.h"
 #include "../../Actor/ActorBase.h"
 #include "../../../Application.h"
 #include "../../../Common/UiManager.h"
+#include "../../../Common/EffectManager.h" 
 
-
-ThunderAttack::ThunderAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
-    : AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter)
+ThunderAttack::ThunderAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter, float delayTimer_)
+	: AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter, delayTimer_)
 {
+	// ==========================================================
+	// ★ ここでエフェクトをロード！
+	// （※EffectManagerは何度呼ばれても1回しかロードしないので安全です）
+	// ==========================================================
+	EffectManager::GetInstance().Load("thunder_warn", "Data/Image/efe2/thun.efk");
+	EffectManager::GetInstance().Load("thunder_main", "Data/Image/efe2/efe.efk");
+}
+
+void ThunderAttack::DetermineStrikePositions()
+{
+	strikePositions_.clear();
+	strikeGridIndices_.clear();
+
+	if (!isPlayer_) {
+		strikePositions_.push_back(pos_);
+		strikeGridIndices_.push_back(AttackBase::CalcGridIndex(pos_, isPlayer_));
+	}
+	else {
+		for (auto* a : targets_) {
+			if (!a || !a->IsEnemy()) continue;
+			VECTOR p = a->GetPos();
+			p.y += 150.0f;
+			int gidx = AttackBase::CalcGridIndex(p, false);
+			strikePositions_.push_back(p);
+			strikeGridIndices_.push_back(gidx);
+		}
+		if (strikePositions_.empty()) {
+			VECTOR fallback = pos_;
+			if (fallback.x == 0.0f && fallback.y == 0.0f && fallback.z == 0.0f) {
+				fallback = Grid::GetWorldPosFromIndex(targetGridIdx_, isPlayer_);
+			}
+			strikePositions_.push_back(fallback);
+			strikeGridIndices_.push_back(AttackBase::CalcGridIndex(fallback, isPlayer_));
+		}
+	}
 }
 
 void ThunderAttack::Update()
 {
-    if (!isAlive_) return;
+	if (!isAlive_) return;
 
-    // フレーム経過
-    elapsed_ += 1.0f / 60.0f;
+	// ==========================================
+	// 1. 生成直後：落下地点を決定し、予告エフェクトを出す
+	// ==========================================
+	if (!warningPlayed_) {
+		DetermineStrikePositions();
 
-    // 生成されたら即 Execute
-    if (!executed_) {
-        Execute();
-        executed_ = true;
-    }
+		// ディレイ（詠唱時間）がある場合は予告を出す
+		if (delayTimer_ > 0.0f) {
+			for (const auto& target : strikePositions_) {
+				// ★ マネージャーを使ってたった2行で予告エフェクト再生！
+				int ph = EffectManager::GetInstance().Play("thunder_warn", target);
+				EffectManager::GetInstance().SetScale(ph, 50.0f);
+			}
+		}
+		warningPlayed_ = true;
+	}
 
-    // 弾の移動・寿命管理（自由落下）
-    for (auto& bullet : bullets_) {
-        if (!bullet.isActive) continue;
-        bullet.pos.y += bullet.vel.y * (1.0f / 60.0f);
-        bullet.elapsed += 1.0f / 60.0f;
+	// ==========================================
+	// 2. ディレイ（予兆）待機：時間が来るまでは何もしない！
+	// ==========================================
+	if (delayTimer_ > 0.0f) {
+		delayTimer_ -= 1.0f / 60.0f;
+		return;
+	}
 
-        // 着地判定（地面 y<=0 と仮定）
-        if (bullet.isActive && bullet.pos.y <= 0.0f) {
+	// ==========================================
+	// 3. タイマーゼロ：本番の雷を発射！
+	// ==========================================
+	if (!attackExecuted_) {
+		Execute();
+		attackExecuted_ = true;
+	}
 
-            // 着弾時のダメージ判定
-            for (auto* tgt : targets_) {
-                if (!tgt || !tgt->GetisCollision()) continue;
-                const VECTOR tpos = tgt->GetPos();
-                float dx = tpos.x - bullet.pos.x;
-                float dy = tpos.y - bullet.pos.y;
-                float dz = tpos.z - bullet.pos.z;
-                float distSq = dx * dx + dy * dy + dz * dz;
-                float radiusSum = 100.0f + tgt->GetCapsuleRadius();
-                if (distSq < radiusSum * radiusSum) {
-                    tgt->ApplyDamage(damage_);
-                    Application::GetInstance()->ShakeScreen(5, 30, true, true);
-                }
-            }
+	// ==========================================
+	// 4. 以降は弾の移動・ダメージ処理
+	// ==========================================
+	for (auto& bullet : bullets_) {
+		if (!bullet.isActive) continue;
+		bullet.pos.y += bullet.vel.y * (1.0f / 60.0f);
+		bullet.elapsed += 1.0f / 60.0f;
 
+		if (bullet.isActive && bullet.pos.y <= 0.0f) {
+			for (auto* tgt : targets_) {
+				if (!tgt || !tgt->GetisCollision()) continue;
+				const VECTOR tpos = tgt->GetPos();
+				float dx = tpos.x - bullet.pos.x;
+				float dy = tpos.y - bullet.pos.y;
+				float dz = tpos.z - bullet.pos.z;
+				float distSq = dx * dx + dy * dy + dz * dz;
+				float radiusSum = 100.0f + tgt->GetCapsuleRadius();
+				if (distSq < radiusSum * radiusSum) {
+					tgt->ApplyDamage(damage_);
+					Application::GetInstance()->ShakeScreen(5, 30, true, true);
+				}
+			}
+			bullet.isActive = false;
+			bullet.elapsed = 0.0f;
+		}
+		if (bullet.elapsed > bulletLifeTime_) bullet.isActive = false;
+	}
 
-            // 着弾後は非アクティブ化
-            bullet.isActive = false;
-            bullet.elapsed = 0.0f;
-        }
-
-        if (bullet.elapsed > bulletLifeTime_) bullet.isActive = false;
-    }
-
-    // 全弾消滅で生存フラグを落とす
-    bool anyActive = false;
-    for (const auto& bullet : bullets_) {
-        if (bullet.isActive) anyActive = true;
-    }
-    if (!anyActive) {
-        isAlive_ = false;
-    }
+	bool anyActive = false;
+	for (const auto& bullet : bullets_) {
+		if (bullet.isActive) anyActive = true;
+	}
+	if (!anyActive) isAlive_ = false;
 }
 
-void ThunderAttack::Draw()
-{
-    // 弾を描画（弾ごとの位置で描く）
-    for (const auto& bullet : bullets_) {
-        if (!bullet.isActive) continue;
-        //DrawSphere3D(bullet.pos, 30.0f, 16, GetColor(255, 200, 50), GetColor(255, 200, 50), true);
-
-        // 地面エフェクト（小さい円）
-        VECTOR ground = bullet.pos;
-        ground.y = 0.0f;
-        //DrawSphere3D(ground, 60.0f, 24, GetColor(255, 180, 80), GetColor(0, 0, 0), true);
-    }
+void ThunderAttack::Draw() {
+	// （描画はエフェクトに任せるのでここは空でもOKです）
 }
 
-void ThunderAttack::DrawWarning()
-{
-    // ワーニングは無効
-}
+void ThunderAttack::DrawWarning() {}
 
 void ThunderAttack::Execute()
 {
-    strikePositions_.clear();
-    strikeGridIndices_.clear();
+	for (size_t i = 0; i < strikePositions_.size(); ++i) {
+		const VECTOR& target = strikePositions_[i];
+		int gridIdx = strikeGridIndices_[i];
+		UIManager::GetInstance().SetGridState(gridIdx, Grid::GridState::Attack, isPlayer_);
 
-    if (!isPlayer_) {
-        // 敵が発射した落雷: 事前に SetPos() された座標を使う
-        strikePositions_.push_back(pos_);
-        strikeGridIndices_.push_back(AttackBase::CalcGridIndex(pos_, isPlayer_));
-    }
-    else {
-        // プレイヤーが発射した落雷: 敵の頭上へ落とす
-        for (auto* a : targets_) {
-            if (!a) continue;
-            if (!a->IsEnemy()) continue;
-            VECTOR p = a->GetPos();
-            p.y += 150.0f; // 敵の頭上
-            int gidx = AttackBase::CalcGridIndex(p, false);
-            strikePositions_.push_back(p);
-            strikeGridIndices_.push_back(gidx);
-        }
+		ThunderBullet bullet;
+		bullet.pos = target;
+		bullet.pos.y = 300.0f;
+		bullet.vel = { 0.0f, -600.0f, 0.0f };
+		bullet.gridIndex = gridIdx;
+		bullet.isActive = true;
+		bullet.elapsed = 0.0f;
+		bullets_.push_back(bullet);
 
-        // 敵がいなければフォールバック
-        if (strikePositions_.empty()) {
-            VECTOR fallback = pos_;
-            if (fallback.x == 0.0f && fallback.y == 0.0f && fallback.z == 0.0f) {
-                fallback = Grid::GetWorldPosFromIndex(targetGridIdx_, isPlayer_);
-            }
-            strikePositions_.push_back(fallback);
-            strikeGridIndices_.push_back(AttackBase::CalcGridIndex(fallback, isPlayer_));
-        }
-    }
-
-    // ==========================================================
-    // ★ エフェクトのロードをここで行う（初回のみ）
-    // ==========================================================
-    if (!s_thunderEffectTried) {
-        s_thunderEffectTried = true;
-        if (GetEffekseer3DManager() != nullptr) {
-            const char* path = "Data/Image/efe2/efe.efk"; 
-            s_thunderEffectHandle = LoadEffekseerEffect(path, 1.0f);
-            if (s_thunderEffectHandle == -1) {
-                AppLogAdd("【エラー】Effekseerの読み込み失敗！: %s\n", path);
-            }
-            else {
-                AppLogAdd("【大成功】Effekseerの読み込み完了！\n");
-            }
-        }
-    }
-
-    // グリッド状態を Attack に変更して、上空から落とす弾を生成
-    for (size_t i = 0; i < strikePositions_.size(); ++i) {
-        const VECTOR& target = strikePositions_[i];
-        int gridIdx = strikeGridIndices_[i];
-        UIManager::GetInstance().SetGridState(gridIdx, Grid::GridState::Attack, isPlayer_);
-
-        ThunderBullet bullet;
-        // 上空から落とす
-        bullet.pos = target;
-        bullet.pos.y = 300.0f; // 高さ
-        bullet.vel = { 0.0f, -600.0f, 0.0f }; // 下方向速度
-        bullet.gridIndex = gridIdx;
-        bullet.isActive = true;
-        bullet.elapsed = 0.0f;
-        bullets_.push_back(bullet);
-
-        // ==========================================================
-        // ★ 攻撃が生成された瞬間にエフェクトを再生！
-        // ==========================================================
-        if (s_thunderEffectHandle != -1) {
-            int ph = PlayEffekseer3DEffect(s_thunderEffectHandle);
-            if (ph != -1) {
-                // ターゲットの座標(地面)でエフェクトを再生開始する
-                SetPosPlayingEffekseer3DEffect(ph, target.x, 0.0f, target.z);
-                SetScalePlayingEffekseer3DEffect(ph, 100.0f, 100.0f, 100.0f);
-                AppLogAdd("【大成功】生成と同時にエフェクトを座標(%.1f, 0.0, %.1f)で再生！ ハンドル:%d\n", target.x, target.z, ph);
-            }
-            else {
-                AppLogAdd("【エラー】PlayEffekseer3DEffect が失敗しました！\n");
-            }
-        }
-    }
+		// ==========================================================
+		// ★ 本番の落雷エフェクトもマネージャーにお任せ！
+		// ==========================================================
+		VECTOR groundPos = { target.x, 0.0f, target.z }; // 地面に落とす
+		int ph = EffectManager::GetInstance().Play("thunder_main", groundPos);
+		EffectManager::GetInstance().SetScale(ph, 100.0f);
+	}
 }

@@ -1,46 +1,84 @@
 #include "MeteorAttack.h"
 #include <DxLib.h>
 #include <cmath>
+#include "../../../Common/EffectManager.h" 
 
-MeteorAttack::MeteorAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
-	: AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter)
-	, fallSpeed_(0.5f * (velocity.y + -200.0f + std::fabs(velocity.y - -200.0f)))
+MeteorAttack::MeteorAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter, float delayTime)
+	: AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter, delayTime)
+	, fallSpeed_(0.0f)
 {
-	// 初期Yを上空にする場合は生成時に pos_.y を上げるなど Scene 側で調整
+	// 上空から降らせるため、生成時にY座標を高くしておく
+	pos_.y = 1000.0f;
+
+	// 初速（下向き）
+	fallSpeed_ = velocity.y < 0 ? velocity.y : -100.0f;
+
+	// 落下用エフェクトと、爆発用エフェクトの2つをロード！
+	EffectManager::GetInstance().Load("meteor", "Data/Image/efe3/meteo.efk");
+	EffectManager::GetInstance().Load("explosion", "Data/Image/efe3/explosion.efk");
 }
 
 void MeteorAttack::Update() {
-	// 落下運動の簡易実装
-	fallSpeed_ += 9.8f * (1.0f / 60.0f); // 重力疑似
-	pos_.y += fallSpeed_ * (1.0f / 60.0f);
-	AttackBase::Update();
+	if (!isAlive_) return;
 
-	// 地面到達や寿命で衝突判定→Execute を呼ぶ処理がある想定
+	// 1. 予兆（詠唱）待機
+	if (delayTimer_ > 0.0f) {
+		if (!warningPlayed_) {
+			// 必要ならここで地面（pos_.x, 0.0f, pos_.z）に予告エフェクトを出す
+			warningPlayed_ = true;
+		}
+		delayTimer_ -= 1.0f / 60.0f;
+		return;
+	}
+
+	// 2. 落下開始（ここでメテオの球体エフェクトを出す）
+	if (!attackExecuted_) {
+		effectPlayingId_ = EffectManager::GetInstance().Play("meteor", pos_);
+		EffectManager::GetInstance().SetScale(effectPlayingId_, 300.0f);
+		attackExecuted_ = true;
+	}
+
+	// 3. 落下運動の処理
+	if (!impacted_) {
+		fallSpeed_ -= 15.0f; // 重力でどんどん加速（下向き）
+		pos_.y += fallSpeed_ * (1.0f / 60.0f);
+
+		// 斜めに落としたい場合は X や Z も動かす
+		pos_.x += vel_.x * (1.0f / 60.0f);
+		pos_.z += vel_.z * (1.0f / 60.0f);
+
+		// エフェクトを落下する隕石に追従させる
+		if (effectPlayingId_ != -1) {
+			EffectManager::GetInstance().SetPos(effectPlayingId_, pos_);
+		}
+
+		// 地面（Y=0）に到達したらドカーン！！
+		if (pos_.y <= 0.0f) {
+			pos_.y = 0.0f;
+			Execute();
+		}
+	}
+
+	// 寿命が来たら消滅
+	lifeTime_ -= 1.0f / 60.0f;
+	if (lifeTime_ <= 0.0f) Kill();
 }
 
-void MeteorAttack::Draw() {
-	// 火の尾を表現
-	DrawSphere3D(pos_, 28.0f, 12, GetColor(255, 160, 60), GetColor(255, 80, 10), TRUE);
-	// 簡単な尾を線で描く
-	DrawLine3D({ pos_.x, pos_.y + 10.0f, pos_.z }, { pos_.x - fallSpeed_ * 0.02f, pos_.y + 30.0f, pos_.z }, GetColor(255, 120, 60));
-}
-
-void MeteorAttack::DrawWarning() {
-	// ワーニング表示：衝突範囲を示す赤い十字
-	const float r = 90.0f;
-	VECTOR p = pos_;
-	VECTOR a = { p.x - r, p.y, p.z - r };
-	VECTOR b = { p.x + r, p.y, p.z + r };
-	VECTOR c = { p.x - r, p.y, p.z + r };
-	VECTOR d = { p.x + r, p.y, p.z - r };
-	int col = GetColor(255, 120, 60);
-	DrawLine3D(a, b, col);
-	DrawLine3D(c, d, col);
-}
+void MeteorAttack::Draw() {}
+void MeteorAttack::DrawWarning() {}
 
 void MeteorAttack::Execute() {
 	if (impacted_) return;
 	impacted_ = true;
-	// 広域ダメージ、エフェクト発生などはここで行う（AttackManagerへ通知等）
-	// この攻撃はヒット時に消滅する想定
+
+	// 落下中のメテオエフェクトを消す
+	if (effectPlayingId_ != -1) {
+		EffectManager::GetInstance().Stop(effectPlayingId_);
+	}
+
+	// 代わりに大爆発エフェクトを再生！
+	int expId = EffectManager::GetInstance().Play("explosion", pos_);
+	EffectManager::GetInstance().SetScale(expId, 100.0f); // 爆発は巨大に！
+
+	// ※ 周囲へのダメージ判定などは AttackManager 側で行われる想定
 }

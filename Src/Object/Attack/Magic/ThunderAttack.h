@@ -7,46 +7,42 @@
 class ThunderAttack : public AttackBase
 {
 public:
-    // 1回の攻撃で複数スポットに落雷
-    ThunderAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter);
+	// コンストラクタ（遅延タイマー対応済み）
+	ThunderAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter, float delayTimer_ = 0.0f);
 
-    void Update() override;
-    void Draw() override;
-    void DrawWarning() override;
-    void Execute() override;
+	void Update() override;
+	void Draw() override;
+	void DrawWarning() override;
+	void Execute() override;
 
-    BulletType GetBulletType() const override { return isPlayer_ ? BulletType::PLAYER : BulletType::ENEMY; }
+	BulletType GetBulletType() const override { return isPlayer_ ? BulletType::PLAYER : BulletType::ENEMY; }
 
-    void SetTargets(const std::vector<ActorBase*>& targets) {
-        targets_ = targets;
-    }
+	void SetTargets(const std::vector<ActorBase*>& targets) {
+		targets_ = targets;
+	}
+
 private:
-    struct ThunderBullet {
-        VECTOR pos;
-        VECTOR vel;
-        bool isActive = true;
-        int gridIndex;
-        float elapsed = 0.0f;
-    };
+	struct ThunderBullet {
+		VECTOR pos;
+		VECTOR vel;
+		bool isActive = true;
+		int gridIndex;
+		float elapsed = 0.0f;
+		bool hasDealtDamage = false; // 追加：エフェクト再生時にダメージを与えたか
+	};
 
-    std::vector<ThunderBullet> bullets_; // 発射された弾
-    float warningTime_ = 1.0f; // 予兆時間
-    float elapsed_ = 0.0f;
-    bool executed_ = false;
-    bool bulletFired_ = false;
-    float bulletLifeTime_ = 1.0f; // 弾の寿命
+	std::vector<ThunderBullet> bullets_; // 発射された弾
 
-    // 静的キャッシュ：エフェクトリソースハンドル
-    int s_thunderEffectHandle = -1;
-    bool s_thunderEffectTried = false;
+	// 遅延と状態管理
+	bool warningPlayed_ = false;   // 予告エフェクトを再生したか
+	bool attackExecuted_ = false;  // 本番の雷を落としたか
+	void DetermineStrikePositions(); // 落下地点を事前に計算する関数
 
-    int s_thunderWarningEffectHandle;
-    bool s_thunderWarningEffectTried;
-    std::vector<int> warningEffectPlayHandles_;
+	float bulletLifeTime_ = 1.0f; // 弾の寿命
 
-    // 生成する落雷スポット（予兆時に決定して Execute と共有）
-    std::vector<VECTOR> strikePositions_;
-    std::vector<int> strikeGridIndices_;
-    int strikeCount_ = 3; // デフォルト: 主要1 + 2ランダム
-    std::vector<ActorBase*> targets_;
+	// 生成する落雷スポット
+	std::vector<VECTOR> strikePositions_;
+	std::vector<int> strikeGridIndices_;
+	int strikeCount_ = 3;
+	std::vector<ActorBase*> targets_;
 };

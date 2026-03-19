@@ -3,7 +3,7 @@
 
 class RangedAttack : public AttackBase {
 public:
-    RangedAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter);
+    RangedAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter,float delayTimer_);
 
     void Update() override;
     void Draw() override;

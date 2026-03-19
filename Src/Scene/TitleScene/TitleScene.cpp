@@ -1,12 +1,13 @@
 ﻿#include "TitleScene.h"
 #include <DxLib.h>
-#include "EffekseerForDXLib.h"
+#include <EffekseerForDXLib.h>
 #include "../../Input/InputManager.h"
 #include "../SceneManager.h"
 #include "../../Object/Attack/AttackManager.h"
 #include "../../Common/UiManager.h"
 #include "../../Common/RomanjiConverter.h"
-#include"../../Common/Fader.h"
+#include "../../Common/Fader.h"
+#include "../../Common/EffectManager.h" 
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -56,7 +57,7 @@ namespace {
 		t.erase(std::find_if(t.rbegin(), t.rend(), [](unsigned char ch) { return !IsSpaceSafe(ch); }).base(), t.end());
 		for (char& c : t) {
 			const unsigned char uc = static_cast<unsigned char>(c);
-			if (uc < 128) c = static_cast<char>(std::tolower(c));
+			if (uc < 128) c = static_cast<char>(std::tolower(uc));
 		}
 		return t;
 	}
@@ -67,12 +68,10 @@ namespace {
 // =======================================================
 TitleScene::TitleScene(void) {
 	attackManager_ = new AttackManager();
-	// RNG の初期化はコンストラクタでも可（安全のため空シード）
 	efkRng_.seed(static_cast<unsigned int>(std::random_device{}()));
 }
 
 TitleScene::~TitleScene(void) {
-	// Release() は Scene 側で呼ばれる前提だが念のため
 	Release();
 
 	if (attackManager_) {
@@ -95,7 +94,6 @@ void TitleScene::Init(void) {
 	cmdHiraStr_.clear();
 	inputHiraStr_.clear();
 
-	// Effekseer の表示サイズ同期（ウィンドウサイズが変わる可能性があるため here でも呼べる）
 	int sw = 0, sh = 0;
 	GetDrawScreenSize(&sw, &sh);
 	if (effekseerInitialized_) {
@@ -104,7 +102,7 @@ void TitleScene::Init(void) {
 
 	// 花火初期値
 	efkSpawnTimer_ = 0.0f;
-	efkSpawnInterval_ = 0.5f; // 基本間隔（秒）
+	efkSpawnInterval_ = 0.5f;
 	efkMaxSimultaneous_ = 6;
 }
 
@@ -113,30 +111,26 @@ void TitleScene::Load(void) {
 	titleHandle_ = LoadGraph("Data/Image/title.png");
 	LoadCommandsFromCSV("Data/CSV/Word.csv");
 
+	effekseerInitialized_ = true;
 
-	effekseerInitialized_ = true; // フラグだけ立てて、タイトル画面の花火を許可する
-
-	// ウィンドウサイズを Effekseer に通知
 	int sw = 0, sh = 0;
 	GetDrawScreenSize(&sw, &sh);
 	if (effekseerInitialized_) {
 		Effekseer_Set2DSetting(sw, sh);
 	}
 
-	// efk ファイルの読み込み（相対パス）
-	const char* efkPath = "Data/Image/efe/efe.efk";
+	// ==========================================================
+	// ★ マネージャーを使って花火をロード＆初回再生！
+	// ==========================================================
 	if (effekseerInitialized_) {
-		efkResourceHandle_ = LoadEffekseerEffect(efkPath, 1.0f);
-		if (efkResourceHandle_ != -1) {
-			// 1個目は中央上に固定で再生（見本）
-			int sw2 = 0, sh2 = 0;
-			GetDrawScreenSize(&sw2, &sh2);
-			int h = PlayEffekseer2DEffect(efkResourceHandle_);
-			if (h != -1) {
-				SetPosPlayingEffekseer2DEffect(h, static_cast<float>(sw2) * 0.5f, static_cast<float>(sh2) * 0.25f, 0.0f);
-				SetScalePlayingEffekseer2DEffect(h, 3.0f, 3.0f, 3.0f);
-				efkPlayingHandles_.push_back(h);
-			}
+		EffectManager::GetInstance().Load("firework", "Data/Image/efe/efe.efk");
+
+		// 1個目は中央上に固定で再生（見本）
+		VECTOR pos = { static_cast<float>(sw) * 0.5f, static_cast<float>(sh) * 0.25f, 0.0f };
+		int h = EffectManager::GetInstance().Play2D("firework", pos);
+		if (h != -1) {
+			EffectManager::GetInstance().SetScale2D(h, 3.0f);
+			efkPlayingHandles_.push_back(h);
 		}
 	}
 }
@@ -146,7 +140,6 @@ void TitleScene::LoadEnd(void) {
 }
 
 void TitleScene::Release(void) {
-	// 1. 画像リソースの解放
 	if (handle_ != -1) {
 		DeleteGraph(handle_);
 		handle_ = -1;
@@ -155,8 +148,6 @@ void TitleScene::Release(void) {
 		DeleteGraph(titleHandle_);
 		titleHandle_ = -1;
 	}
-
-	// 2. キー入力ハンドルの解放
 	if (keyInputHandle_ != -1) {
 		DeleteKeyInput(keyInputHandle_);
 		keyInputHandle_ = -1;
@@ -167,26 +158,20 @@ void TitleScene::Release(void) {
 	}
 
 	// ==========================================================
-	// 3. エフェクトの強制停止とリストのクリア
-	// 次のシーンに行く前に、今画面に出ている花火だけを止めます。
+	// ★ マネージャーに停止を命令するだけ！
 	// ==========================================================
 	if (!efkPlayingHandles_.empty()) {
 		for (int ph : efkPlayingHandles_) {
-			// 再生中(1=TRUE)なら強制ストップさせる
-			if (IsEffekseer2DEffectPlaying(ph) == 1) {
-				StopEffekseer2DEffect(ph);
-			}
+			EffectManager::GetInstance().Stop2D(ph);
 		}
-		// リストの中身を完全に空にする
 		efkPlayingHandles_.clear();
 	}
-
 }
+
 // =======================================================
 // CSV読み込み・コマンド処理
 // =======================================================
 void TitleScene::LoadCommandsFromCSV(const std::string& path) {
-	// 既存実装そのまま
 	commandMap_.clear();
 	commandNames_.clear();
 
@@ -197,7 +182,15 @@ void TitleScene::LoadCommandsFromCSV(const std::string& path) {
 	}
 
 	std::string line;
+	// 先頭行（ヘッダー等）をスキップする：最初の「非空行」を飛ばす
+	bool skippedFirstNonEmptyLine = false;
 	while (std::getline(file, line)) {
+		if (!skippedFirstNonEmptyLine) {
+			if (line.empty()) continue; // 空行はさらにスキップ
+			skippedFirstNonEmptyLine = true;
+			continue; // 最初の非空行を飛ばす（ヘッダー想定）
+		}
+
 		if (line.empty()) continue;
 		std::istringstream iss(line);
 		std::string name, type;
@@ -222,9 +215,7 @@ void TitleScene::LoadCommandsFromCSV(const std::string& path) {
 	}
 	lastRegisteredCommand_ = "コマンド読み込み完了";
 }
-
 void TitleScene::ProcessTitleCommand(const std::string& rawInput) {
-	// 既存実装そのまま
 	const std::string inputTrim = ToLowerTrim(rawInput);
 	if (inputTrim.empty()) {
 		lastRegisteredCommand_ = "入力が空です";
@@ -319,7 +310,6 @@ void TitleScene::ProcessTitleCommand(const std::string& rawInput) {
 // Update
 // =======================================================
 void TitleScene::Update(void) {
-	// Effekseer 更新（2D）
 	if (effekseerInitialized_) {
 		UpdateEffekseer2D();
 	}
@@ -327,25 +317,25 @@ void TitleScene::Update(void) {
 	const float frameDt = 1.0f / 60.0f;
 
 	// ==========================================================
-	// ★ 最重要修正箇所：正常なお掃除ロジック！
-	// 再生が終了した無効なデータを破棄し、再生中のもの(TRUE)だけを残す
+	// ★ 再生中の花火だけを残す（お掃除ロジック）
 	// ==========================================================
 	if (!efkPlayingHandles_.empty()) {
 		std::vector<int> alive;
 		alive.reserve(efkPlayingHandles_.size());
 		for (int ph : efkPlayingHandles_) {
-			// IsEffekseer2DEffectPlaying: 1(TRUE)=再生中, 0(FALSE)=終了, -1=エラー
-			if (IsEffekseer2DEffectPlaying(ph) == TRUE) {
-				alive.push_back(ph); // 再生中のみリストに残す
+			if (EffectManager::GetInstance().IsPlaying2D(ph)) {
+				alive.push_back(ph);
 			}
 		}
 		efkPlayingHandles_.swap(alive);
 	}
 
-	// ----- 花火（ランダムスポーン）処理 -----
+	// ==========================================================
+	// ★ 花火（ランダムスポーン）処理
+	// ==========================================================
 	efkSpawnTimer_ -= frameDt;
 	if (efkSpawnTimer_ <= 0.0f) {
-		if (effekseerInitialized_ && efkResourceHandle_ != -1 && static_cast<int>(efkPlayingHandles_.size()) < efkMaxSimultaneous_) {
+		if (effekseerInitialized_ && static_cast<int>(efkPlayingHandles_.size()) < efkMaxSimultaneous_) {
 			int sw = 0, sh = 0;
 			GetDrawScreenSize(&sw, &sh);
 			if (sw > 0 && sh > 0) {
@@ -361,11 +351,11 @@ void TitleScene::Update(void) {
 				int g = drgb(efkRng_);
 				int b = drgb(efkRng_);
 
-				int ph = PlayEffekseer2DEffect(efkResourceHandle_);
+				VECTOR pos = { px, py, 0.0f };
+				int ph = EffectManager::GetInstance().Play2D("firework", pos);
 				if (ph != -1) {
-					SetPosPlayingEffekseer2DEffect(ph, px, py, 0.0f);
-					SetScalePlayingEffekseer2DEffect(ph, scale, scale, scale);
-					SetColorPlayingEffekseer2DEffect(ph, r, g, b, 255);
+					EffectManager::GetInstance().SetScale2D(ph, scale);
+					EffectManager::GetInstance().SetColor2D(ph, r, g, b, 255);
 					efkPlayingHandles_.push_back(ph);
 				}
 			}
@@ -374,7 +364,6 @@ void TitleScene::Update(void) {
 		efkSpawnTimer_ = jitter(efkRng_);
 	}
 
-	// UIメッセージの表示時間管理
 	if (registeredDisplayRemaining_ > 0) {
 		--registeredDisplayRemaining_;
 		if (registeredDisplayRemaining_ == 0) {
@@ -385,7 +374,6 @@ void TitleScene::Update(void) {
 	const bool curReturnDown = (CheckHitKey(KEY_INPUT_RETURN) != 0);
 	const bool newReturnPress = (curReturnDown && !prevReturnDown_);
 
-	// --- 1. コマンド一覧表示モード ---
 	if (showCommandList_) {
 		if (CheckHitKey(KEY_INPUT_UP) && commandListScroll_ > 0) --commandListScroll_;
 		if (CheckHitKey(KEY_INPUT_DOWN)) {
@@ -416,7 +404,6 @@ void TitleScene::Update(void) {
 		return;
 	}
 
-	// --- 2. 必殺技コマンド登録モード ---
 	if (!isRegisteringUltimate_) {
 		if (CheckHitKey(KEY_INPUT_F1)) {
 			if (keyInputHandleCmd_ != -1) {
@@ -485,7 +472,6 @@ void TitleScene::Update(void) {
 		return;
 	}
 
-	// --- 3. メイン入力窓（常時） ---
 	if (keyInputHandleCmd_ != -1) {
 		GetKeyInputString(cmdInputBuf_, keyInputHandleCmd_);
 		cmdHiraStr_ = std::string(cmdInputBuf_);
@@ -502,14 +488,12 @@ void TitleScene::Update(void) {
 		}
 	}
 
-	// 必殺技リストのスクロール操作
 	if (!isRegisteringUltimate_ && attackManager_) {
 		const int listSize = static_cast<int>(attackManager_->registeredCommands_.size());
 		if (CheckHitKey(KEY_INPUT_UP) && scrollOffset_ > 0) scrollOffset_--;
 		if (CheckHitKey(KEY_INPUT_DOWN) && scrollOffset_ < listSize - 1) scrollOffset_++;
 	}
 
-	// SPACEによるゲーム開始
 	if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_SPACE)) {
 		SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
 		return;
@@ -517,6 +501,7 @@ void TitleScene::Update(void) {
 
 	prevReturnDown_ = curReturnDown;
 }
+
 // =======================================================
 // Draw
 // =======================================================
@@ -524,7 +509,6 @@ void TitleScene::Draw(void) {
 	int screenW, screenH;
 	GetDrawScreenSize(&screenW, &screenH);
 
-	// 1. 背景描画 (Title2.png があれば画面サイズに引き伸ばして描画)
 	if (handle_ != -1) {
 		DrawExtendGraph(0, 0, screenW, screenH, handle_, TRUE);
 	}
@@ -532,38 +516,33 @@ void TitleScene::Draw(void) {
 		SetBackgroundColor(20, 20, 30);
 	}
 
-	// 背景を少し暗くしてUIを見やすくする
 	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 120);
 	DrawBox(0, 0, screenW, screenH, GetColor(0, 0, 0), TRUE);
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 
-	// タイトルロゴ描画 (Title.png があれば中央上部に表示)
 	if (titleHandle_ != -1) {
 		int gw = 0, gh = 0;
 		GetGraphSize(titleHandle_, &gw, &gh);
-		const float scale = 0.3f; // 必要なら調整
-		const int logoCenterX = screenW / 2; // 横は画面中央
-		const int topMargin = 20; // 上からの余白
+		const float scale = 0.3f;
+		const int logoCenterX = screenW / 2;
+		const int topMargin = 20;
 		const int logoCenterY = topMargin + static_cast<int>(gh * scale * 0.5f);
 		DrawRotaGraph(logoCenterX, logoCenterY, scale, 0.0, titleHandle_, TRUE);
 	}
 
-	// --- 定数定義 ---
 	const unsigned int colWhite = GetColor(255, 255, 255);
 	const unsigned int colGreen = GetColor(100, 255, 100);
 	const unsigned int colCyan = GetColor(100, 200, 255);
 	const unsigned int colYellow = GetColor(255, 255, 100);
 
-	// 2. 中央の入力エリア
 	const int inputW = 700;
 	const int inputH = 120;
 	const int inputX = (screenW - inputW) / 2;
 	const int inputY = screenH / 2 - 80;
 
-	// 入力窓の背景パネル
 	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 200);
 	DrawBox(inputX, inputY, inputX + inputW, inputY + inputH, GetColor(20, 20, 30), TRUE);
-	DrawBox(inputX, inputY, inputX + inputW, inputY + inputH, GetColor(100, 150, 255), FALSE); // 青枠
+	DrawBox(inputX, inputY, inputX + inputW, inputY + inputH, GetColor(100, 150, 255), FALSE);
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 
 	if (isRegisteringUltimate_) {
@@ -591,14 +570,12 @@ void TitleScene::Draw(void) {
 		}
 	}
 
-	// 3. ステータス・操作説明 (入力窓の少し下)
 	const std::string statusMsg = (!registeredDisplayMessage_.empty()) ? registeredDisplayMessage_ : lastRegisteredCommand_;
 	if (!statusMsg.empty()) {
 		DrawFormatString(inputX + 20, inputY + inputH + 20, colYellow, "Status: %s", ConvertIfRomanji(statusMsg).c_str());
 	}
 	DrawString(inputX + 20, inputY + inputH + 50, "開始系の言葉を入力でゲーム開始", colWhite);
 
-	// 4. 必殺技一覧 (右側パネル)
 	if (attackManager_) {
 		const int listW = 350;
 		const int listH = 400;
@@ -607,7 +584,7 @@ void TitleScene::Draw(void) {
 
 		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 180);
 		DrawBox(listX, listY, listX + listW, listY + listH, GetColor(30, 20, 20), TRUE);
-		DrawBox(listX, listY, listX + listW, listY + listH, GetColor(255, 100, 100), FALSE); // 赤枠
+		DrawBox(listX, listY, listX + listW, listY + listH, GetColor(255, 100, 100), FALSE);
 		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 
 		DrawString(listX + 20, listY + 15, "◆ 登録済み必殺技", colYellow);
@@ -633,7 +610,6 @@ void TitleScene::Draw(void) {
 		}
 	}
 
-	// 5. ゲームの目的・説明 (画面下部パネル)
 	const int descW = screenW - 80;
 	const int descH = 120;
 	const int descX = 40;
@@ -648,7 +624,6 @@ void TitleScene::Draw(void) {
 	DrawString(descX + 20, descY + 75, "・ゲーム中に[TAB]キーでコマンド一覧を確認可能", colWhite);
 	DrawString(descX + 20, descY + 100, "とうろくと入力し自分だけのオリジナル必殺技(6文字以上推奨)を登録しよう！", colWhite);
 
-	// 6. コマンド一覧の全画面表示 (list コマンド時)
 	if (showCommandList_) {
 		const int w = 800;
 		const int h = 600;
@@ -674,7 +649,6 @@ void TitleScene::Draw(void) {
 		}
 	}
 
-	// Effekseer 全体描画（2D）
 	if (effekseerInitialized_) {
 		DrawEffekseer2D();
 	}

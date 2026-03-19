@@ -3,18 +3,22 @@
 
 class MeteorAttack : public AttackBase {
 public:
-	MeteorAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter);
+	MeteorAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter, float delayTime = 0.0f);
 	~MeteorAttack() override = default;
 
 	void Update() override;
 	void Draw() override;
-	void DrawWarning() override; // 追加
+	void DrawWarning() override;
 	void Execute() override;
+
+	BulletType GetBulletType() const override { return isPlayer_ ? BulletType::PLAYER : BulletType::ENEMY; }
 
 private:
 	float fallSpeed_ = 0.0f;
 	bool impacted_ = false;
 
-public:
-	BulletType GetBulletType() const override { return BulletType::PLAYER; } // 追加
+	// エフェクト管理用
+	bool warningPlayed_ = false;
+	bool attackExecuted_ = false;
+	int effectPlayingId_ = -1;
 };

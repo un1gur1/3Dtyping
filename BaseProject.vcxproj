@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Src\Common\EffectManager.cpp" />
     <ClCompile Include="Src\Object\Attack\DarkAttack\DarkAttack.cpp" />
     <ClCompile Include="Src\Object\Attack\HealAttack\HealAttack.cpp" />
     <ClCompile Include="Src\Object\Attack\IceAttack\IceAttack.cpp" />
@@ -56,6 +57,7 @@
     <ClCompile Include="Src\Object\Attack\Magic\ThunderAttack.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\Common\EffectManager.h" />
     <ClInclude Include="Src\Object\Attack\DarkAttack\DarkAttack.h" />
     <ClInclude Include="Src\Object\Attack\HealAttack\HealAttack.h" />
     <ClInclude Include="Src\Object\Attack\IceAttack\IceAttack.h" />

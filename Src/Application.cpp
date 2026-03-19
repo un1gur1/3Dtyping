@@ -1,10 +1,11 @@
 #include "Application.h"
 
 #include <DxLib.h>
-#include<EffekseerForDXLib.h>
+#include <EffekseerForDXLib.h>
 #include "Common/FpsControl.h"
 #include "Input/InputManager.h"
 #include "Scene/SceneManager.h"
+#include "../Src/Common/EffectManager.h" 
 
 Application* Application::instance_ = nullptr;
 
@@ -23,13 +24,13 @@ Application::~Application(void)
 
 void Application::Init(void)
 {
-
 	// アプリケーションの初期設定
 	SetWindowText("2416077_橋本晴翔");
 
 	// ウィンドウ関連
 	SetGraphMode(SCREEN_SIZE_X, SCREEN_SIZE_Y, 32);
 	ChangeWindowMode(true);
+
 	// DxLibの初期化
 	SetUseDirect3DVersion(DX_DIRECT3D_11);
 	isInitFail_ = false;
@@ -38,11 +39,11 @@ void Application::Init(void)
 		isInitFail_ = true;
 		return;
 	}
-	// 初期化
+
+	// Effekseerの初期化
 	if (Effekseer_Init(8000) == -1) {
 		isInitFail_ = true;
-
-		return ;
+		return;
 	}
 
 	SetUseZBuffer3D(TRUE);
@@ -95,24 +96,32 @@ void Application::Run(void)
 
 void Application::Delete(void)
 {
-	Effkseer_End();
+	// ==========================================================
+	// ★ 修正箇所：終了処理の「順番」を完璧に並べ替えました！
+	// ==========================================================
 
-
-	// 入力制御削除
+	// 1. 入力制御を削除
 	InputManager::GetInstance()->DeleteInstance();
 
-	// シーン管理解放・削除
+	// 2. シーン管理解放・削除（ここで各シーンの Release() が安全に呼ばれる）
 	SceneManager::GetInstance()->Delete();
 	SceneManager::GetInstance()->DeleteInstance();
 
+	// 3. シーンが全て消えた後で、マネージャーに残ったエフェクトを完全消去！
+	EffectManager::GetInstance().Clear();
+
+	// 4. ここでようやく Effekseer 本体を終了（スペルミス "Effkseer_End" も修正）
+	//Effekseer_End();
+	Effkseer_End();
+
 	// フレームレート解放
 	delete fps_;
-	// DxLib終了
+
+	// 5. 一番最後に DxLib 終了
 	if (DxLib_End() == -1)
 	{
 		isReleaseFail_ = true;
 	}
-
 }
 
 bool Application::IsInitFail(void) const

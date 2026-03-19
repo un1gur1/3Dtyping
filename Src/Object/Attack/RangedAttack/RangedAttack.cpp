@@ -1,8 +1,8 @@
 #include "RangedAttack.h"
 #include <DxLib.h>
 
-RangedAttack::RangedAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter)
-    : AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter)
+RangedAttack::RangedAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter,float delayTimer_)
+    : AttackBase(targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter, delayTimer_)
 {
 
 

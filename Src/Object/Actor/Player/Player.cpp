@@ -27,6 +27,8 @@
 #include "../../Attack/HealAttack/HealAttack.h"
 #include "../../Attack/MeteorAttack/MeteorAttack.h"
 #include "../../Attack/SwordAttack/SwordAttack.h"
+#include "../../Attack/IceAttack/IceAttack.h"
+
 
 // =======================================================
 // 正規化ヘルパー（無名名前空間）
@@ -335,28 +337,28 @@ void Player::ExecuteMagic(const std::string& magicType, int damage, float speed)
 	AttackBase* newAttack = nullptr;
 
 	if (magicType == "dark") {
-		newAttack = new DarkAttack(-1, true, vel, 1.0f, damage, this);
+		newAttack = new DarkAttack(-1, true, vel, 1.0f, damage, this,1);
 		newAttack->SetPos(pos);
 	}
 	else if (magicType == "heal") {
-		newAttack = new HealAttack(-1, true, vel, 1.0f, damage, this);
+		newAttack = new HealAttack(-1, true, vel, 1.0f, damage, this,1);
 		newAttack->SetPos(pos);
 	}
 	else if (magicType == "meteor") {
 		VECTOR mpos = pos;
 		mpos.y += 600.0f;
-		newAttack = new MeteorAttack(-1, true, vel, 2.0f, damage, this);
+		newAttack = new MeteorAttack(-1, true, vel, 2.0f, damage, this,1);
 		newAttack->SetPos(mpos);
 	}
 	else if (magicType == "sword") {
 		VECTOR spos = pos;
-		spos.z += 120.0f;
-		newAttack = new SwordAttack(-1, true, vel, 0.6f, damage, this);
+		spos.z += 0;
+		newAttack = new SwordAttack(-1, true, vel, 0.6f, damage, this,0);
 		newAttack->SetPos(spos);
 	}
 	else if (magicType == "ice") {
 		// ※IceAttackクラスを作成したらここを書き換えてください
-		newAttack = new ThunderAttack(-1, true, vel, 1.5f, damage, this);
+		newAttack = new IceAttack(-1, true, vel, 1.5f, damage, this,1);
 		newAttack->SetPos(pos);
 	}
 	else if (magicType == "shoot" || magicType == "thunder") {
@@ -367,7 +369,7 @@ void Player::ExecuteMagic(const std::string& magicType, int damage, float speed)
 					epos.y += 150.0f;
 					vel = { 0.0f, -100.0f, 0.0f };
 					int gridIdx = AttackBase::CalcGridIndex(epos, false);
-					newAttack = new ThunderAttack(gridIdx, true, vel, 2.0f, damage, this);
+					newAttack = new ThunderAttack(gridIdx, true, vel, 2.0f, damage, this,1);
 					newAttack->SetPos(epos);
 					break; // 最初の敵に落とす
 				}
@@ -378,12 +380,12 @@ void Player::ExecuteMagic(const std::string& magicType, int damage, float speed)
 		VECTOR rpos = pos;
 		rpos.y += 80.0f;
 		rpos.z += 160.0f;
-		newAttack = new RangedAttack(-1, true, vel, 3.0f, damage, this);
+		newAttack = new RangedAttack(-1, true, vel, 3.0f, damage, this,1);
 		newAttack->SetPos(rpos);
 	}
 	else {
 		// デフォルト：究極魔法
-		newAttack = new UltimateAttack(-1, true, vel, 1.0f, damage, this);
+		newAttack = new UltimateAttack(-1, true, vel, 1.0f, damage, this,1);
 		newAttack->SetPos(pos);
 	}
 
@@ -431,7 +433,6 @@ void Player::Move(void)
 				if (itUltimate != attackManager_->ultimateCommandDataMap_.end()) {
 					const auto& data = itUltimate->second;
 
-					// ★修正ポイント1：Ultimate.csvに「ICE」などと書いた場合、それをそのまま属性にする！
 					std::string typeLower = ToLowerTrim(commandId);
 
 					auto itMagic = magicTypeMap_.find(commandKey);

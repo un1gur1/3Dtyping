@@ -270,6 +270,9 @@ bool Enemy::IsMyAttackAlive() const {
 // =======================================================
 // 詠唱・攻撃データ
 // =======================================================
+// =======================================================
+// Enemy.cpp の変更部分（詠唱開始時）
+// =======================================================
 void Enemy::StartTypingUltimate(const std::string& command) {
 	typingCommand_ = command;
 	typingElapsed_ = 0.0f;
@@ -279,40 +282,62 @@ void Enemy::StartTypingUltimate(const std::string& command) {
 	const float perChar = (hpRatio >= HP_HIGH) ? 1.0f : 0.2f;
 
 	typingWait_ = static_cast<float>(charCount) * perChar;
-
-	// UIに詠唱開始を通知
 	UIManager::GetInstance().SetEnemyCasting(typingCommand_, typingElapsed_, typingWait_);
+
+	// ダメージや速度を取得
+	int damage = 15; float speed = 20.0f;
+	std::string typeLower = "";
+	const auto& wordMap = GetWordTypeMap();
+	auto wit = wordMap.find(command);
+	if (wit != wordMap.end()) typeLower = wit->second;
+
+	// ★ 変更点：雷は「遅延発動」に対応したので、予定リストに入れず「今すぐ」生成する！
+	if (typeLower == "shoot" || typeLower == "thunder") {
+		int thunderCount = 3 + rand() % 3;
+		VECTOR targetPos = player_->GetPos();
+		targetPos.y = 50.0f;
+
+		for (int i = 0; i < thunderCount; ++i) {
+			VECTOR tpos = targetPos;
+			if (i > 0) {
+				tpos.x += -400 + (rand() % 3) * 400;
+				tpos.z += -400 + (rand() % 3) * 400;
+			}
+			int gridIdx = AttackBase::CalcGridIndex(tpos, false);
+			VECTOR vel = { 0.0f, -100.0f, 0.0f };
+
+			// ここで typingWait_ をディレイ（待ち時間）として渡す！
+			auto thunder = new ThunderAttack(gridIdx, false, vel, 2.0f, damage, this, typingWait_);
+			thunder->SetPos(tpos);
+			attackManager_->Add(thunder);
+		}
+	}
+	else {
+		PreparePlannedAttackData();
+	}
 }
 
+// =======================================================
+// Enemy.cpp の変更部分（詠唱完了時）
+// =======================================================
 void Enemy::UpdateTypingUltimate(const float deltaTime) {
 	if (typingCommand_.empty()) return;
 
 	typingElapsed_ += deltaTime;
-
-	// 毎フレームUIに進捗を通知
 	UIManager::GetInstance().SetEnemyCasting(typingCommand_, typingElapsed_, typingWait_);
 
 	if (typingElapsed_ < typingWait_) return;
 
-	// --- 詠唱完了発射 ---
+	// ★ 変更点：雷（THUNDER）は生成済みなので、ここでは Ranged と Ultimate のみ発射する
 	if (!plannedAttacks_.empty() && attackManager_) {
 		for (const auto& pa : plannedAttacks_) {
 			if (pa.kind == PlannedAttack::Kind::ULTIMATE) {
-				auto ultimate = new UltimateAttack(-1, false, pa.velocity, 1.0f, pa.damage, this);
+				auto ultimate = new UltimateAttack(-1, false, pa.velocity, 1.0f, pa.damage, this,1);
 				ultimate->SetPos(pa.pos);
 				attackManager_->Add(ultimate);
 			}
-			else if (pa.kind == PlannedAttack::Kind::THUNDER) {
-				for (const auto& tpos : pa.thunderPositions) {
-					const VECTOR velocity = { 0.0f, -100.0f, 0.0f };
-					const int gridIdx = AttackBase::CalcGridIndex(tpos, false);
-					auto thunder = new ThunderAttack(gridIdx, false, velocity, 1.0f, pa.damage, this);
-					thunder->SetPos(tpos);
-					attackManager_->Add(thunder);
-				}
-			}
 			else if (pa.kind == PlannedAttack::Kind::RANGED) {
-				auto ranged = new RangedAttack(-1, false, pa.velocity, 4.0f, pa.damage, this);
+				auto ranged = new RangedAttack(-1, false, pa.velocity, 4.0f, pa.damage, this,1);
 				ranged->SetPos(pa.pos);
 				attackManager_->Add(ranged);
 			}
@@ -321,8 +346,6 @@ void Enemy::UpdateTypingUltimate(const float deltaTime) {
 
 	plannedAttacks_.clear();
 	typingCommand_.clear();
-
-	// 詠唱終了をUIに通知
 	UIManager::GetInstance().SetEnemyCasting("", 0.0f, 0.0f);
 
 	isAttacking_ = false;
@@ -332,7 +355,6 @@ void Enemy::UpdateTypingUltimate(const float deltaTime) {
 	waitingForAttackFinish_ = true;
 	comboStep_++;
 }
-
 void Enemy::PreparePlannedAttackData() {
 	plannedAttacks_.clear();
 	if (typingCommand_.empty()) return;
@@ -390,50 +412,50 @@ void Enemy::PreparePlannedAttackData() {
 		plannedAttacks_.push_back(pa);
 	}
 	else if (typeLower == "shoot") {
-		const int thunderCount = 3 + rand() % 3;
-		std::vector<VECTOR> positions;
+		//const int thunderCount = 3 + rand() % 3;
+		//std::vector<VECTOR> positions;
 
-		// 1発目は詠唱開始時のプレイヤー足元へ
-		VECTOR targetPos = player_->GetPos();
-		targetPos.y = 50.0f;
-		positions.push_back(targetPos);
+		//// 1発目は詠唱開始時のプレイヤー足元へ
+		//VECTOR targetPos = player_->GetPos();
+		//targetPos.y = 50.0f;
+		//positions.push_back(targetPos);
 
-		// 残りはランダム
-		for (int i = 1; i < thunderCount; ++i) {
-			const int gx = static_cast<int>(targetPos.x) + (-400 + (rand() % 3) * 400);
-			const int gz = static_cast<int>(targetPos.z) + (-400 + (rand() % 3) * 400);
-			positions.push_back({ static_cast<float>(gx), 50.0f, static_cast<float>(gz) });
-		}
+		//// 残りはランダム
+		//for (int i = 1; i < thunderCount; ++i) {
+		//	const int gx = static_cast<int>(targetPos.x) + (-400 + (rand() % 3) * 400);
+		//	const int gz = static_cast<int>(targetPos.z) + (-400 + (rand() % 3) * 400);
+		//	positions.push_back({ static_cast<float>(gx), 50.0f, static_cast<float>(gz) });
+		//}
 
-		PlannedAttack pa;
-		pa.kind = PlannedAttack::Kind::THUNDER;
-		pa.damage = damage;
-		pa.thunderPositions = positions; // ← std::move をやめて通常のコピーにする
-		plannedAttacks_.push_back(pa);
+		//PlannedAttack pa;
+		//pa.kind = PlannedAttack::Kind::THUNDER;
+		//pa.damage = damage;
+		//pa.thunderPositions = positions; // ← std::move をやめて通常のコピーにする
+		//plannedAttacks_.push_back(pa);
 
-		// ==========================================================
-		// ★ 追加：雷の予告座標が決まった瞬間にエフェクトをまとめて再生！
-		// ==========================================================
-		static int s_thunderWarningEffectHandle = -1;
-		static bool s_thunderWarningEffectTried = false;
-		if (!s_thunderWarningEffectTried) {
-			s_thunderWarningEffectTried = true;
-			if (GetEffekseer3DManager() != nullptr) {
-				const char* path = "Data/Image/efe2/thun.efk"; 
-				s_thunderWarningEffectHandle = LoadEffekseerEffect(path, 1.0f);
-			}
-		}
+		//// ==========================================================
+		//// ★ 追加：雷の予告座標が決まった瞬間にエフェクトをまとめて再生！
+		//// ==========================================================
+		//static int s_thunderWarningEffectHandle = -1;
+		//static bool s_thunderWarningEffectTried = false;
+		//if (!s_thunderWarningEffectTried) {
+		//	s_thunderWarningEffectTried = true;
+		//	if (GetEffekseer3DManager() != nullptr) {
+		//		const char* path = "Data/Image/efe2/thun.efk"; 
+		//		s_thunderWarningEffectHandle = LoadEffekseerEffect(path, 1.0f);
+		//	}
+		//}
 
-		// 決まった座標（positions）の数だけ、エフェクトを再生する
-		if (s_thunderWarningEffectHandle != -1) {
-			for (const auto& tpos : positions) {
-				int ph = PlayEffekseer3DEffect(s_thunderWarningEffectHandle);
-				if (ph != -1) {
-					SetPosPlayingEffekseer3DEffect(ph, tpos.x, tpos.y, tpos.z);
-					SetScalePlayingEffekseer3DEffect(ph, 50.0f, 50.0f, 50.0f);
-				}
-			}
-		}
+		//// 決まった座標（positions）の数だけ、エフェクトを再生する
+		//if (s_thunderWarningEffectHandle != -1) {
+		//	for (const auto& tpos : positions) {
+		//		int ph = PlayEffekseer3DEffect(s_thunderWarningEffectHandle);
+		//		if (ph != -1) {
+		//			SetPosPlayingEffekseer3DEffect(ph, tpos.x, tpos.y, tpos.z);
+		//			SetScalePlayingEffekseer3DEffect(ph, 50.0f, 50.0f, 50.0f);
+		//		}
+		//	}
+		//}
 		// ==========================================================
 	}
 	else {

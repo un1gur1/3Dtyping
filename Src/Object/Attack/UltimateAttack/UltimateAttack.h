@@ -5,7 +5,7 @@ class UltimateAttack : public AttackBase
 {
 public:
     // targetGridIdx, isPlayer, velocity, lifeTime, damage, shooter
-    UltimateAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter);
+    UltimateAttack(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter,float delayTimer_);
 
     void Update() override;
     void Draw() override;

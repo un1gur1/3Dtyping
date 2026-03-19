@@ -9,8 +9,7 @@ public:
     // isPlayer: プレイヤー側かどうか
     // velocity: 初期速度
     // lifeTime: 寿命（秒）
-    AttackBase(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter);
-
+    AttackBase(int targetGridIdx, bool isPlayer, const VECTOR& velocity, float lifeTime, int damage, ActorBase* shooter, float delayTimer_ = 0.0f);
     virtual ~AttackBase();
 
     // 共通の更新処理
@@ -56,6 +55,8 @@ public:
     static int CalcGridIndex(const VECTOR& pos, bool isPlayer);
 
     CollisionType collisionType_ = CollisionType::Sphere;
+
+    float delayTimer_;
 
 protected:
     VECTOR pos_;      // 位置
