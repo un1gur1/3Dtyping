@@ -119,20 +119,20 @@ void TitleScene::Load(void) {
 		Effekseer_Set2DSetting(sw, sh);
 	}
 
-	// ==========================================================
-	// ★ マネージャーを使って花火をロード＆初回再生！
-	// ==========================================================
-	if (effekseerInitialized_) {
-		EffectManager::GetInstance().Load("firework", "Data/Image/efe/efe.efk");
+	//// ==========================================================
+	//// ★ マネージャーを使って花火をロード＆初回再生！
+	//// ==========================================================
+	//if (effekseerInitialized_) {
+	//	EffectManager::GetInstance().Load("firework", "Data/Image/efe/efe.efk");
 
-		// 1個目は中央上に固定で再生（見本）
-		VECTOR pos = { static_cast<float>(sw) * 0.5f, static_cast<float>(sh) * 0.25f, 0.0f };
-		int h = EffectManager::GetInstance().Play2D("firework", pos);
-		if (h != -1) {
-			EffectManager::GetInstance().SetScale2D(h, 3.0f);
-			efkPlayingHandles_.push_back(h);
-		}
-	}
+	//	// 1個目は中央上に固定で再生（見本）
+	//	VECTOR pos = { static_cast<float>(sw) * 0.5f, static_cast<float>(sh) * 0.25f, 0.0f };
+	//	int h = EffectManager::GetInstance().Play2D("firework", pos);
+	//	if (h != -1) {
+	//		EffectManager::GetInstance().SetScale2D(h, 3.0f);
+	//		efkPlayingHandles_.push_back(h);
+	//	}
+	//}
 }
 
 void TitleScene::LoadEnd(void) {
@@ -157,15 +157,15 @@ void TitleScene::Release(void) {
 		keyInputHandleCmd_ = -1;
 	}
 
-	// ==========================================================
-	// ★ マネージャーに停止を命令するだけ！
-	// ==========================================================
-	if (!efkPlayingHandles_.empty()) {
-		for (int ph : efkPlayingHandles_) {
-			EffectManager::GetInstance().Stop2D(ph);
-		}
-		efkPlayingHandles_.clear();
-	}
+	//// ==========================================================
+	//// ★ マネージャーに停止を命令するだけ！
+	//// ==========================================================
+	//if (!efkPlayingHandles_.empty()) {
+	//	for (int ph : efkPlayingHandles_) {
+	//		EffectManager::GetInstance().Stop2D(ph);
+	//	}
+	//	efkPlayingHandles_.clear();
+	//}
 }
 
 // =======================================================
@@ -316,53 +316,53 @@ void TitleScene::Update(void) {
 
 	const float frameDt = 1.0f / 60.0f;
 
-	// ==========================================================
-	// ★ 再生中の花火だけを残す（お掃除ロジック）
-	// ==========================================================
-	if (!efkPlayingHandles_.empty()) {
-		std::vector<int> alive;
-		alive.reserve(efkPlayingHandles_.size());
-		for (int ph : efkPlayingHandles_) {
-			if (EffectManager::GetInstance().IsPlaying2D(ph)) {
-				alive.push_back(ph);
-			}
-		}
-		efkPlayingHandles_.swap(alive);
-	}
+	//// ==========================================================
+	//// ★ 再生中の花火だけを残す（お掃除ロジック）
+	//// ==========================================================
+	//if (!efkPlayingHandles_.empty()) {
+	//	std::vector<int> alive;
+	//	alive.reserve(efkPlayingHandles_.size());
+	//	for (int ph : efkPlayingHandles_) {
+	//		if (EffectManager::GetInstance().IsPlaying2D(ph)) {
+	//			alive.push_back(ph);
+	//		}
+	//	}
+	//	efkPlayingHandles_.swap(alive);
+	//}
 
-	// ==========================================================
-	// ★ 花火（ランダムスポーン）処理
-	// ==========================================================
-	efkSpawnTimer_ -= frameDt;
-	if (efkSpawnTimer_ <= 0.0f) {
-		if (effekseerInitialized_ && static_cast<int>(efkPlayingHandles_.size()) < efkMaxSimultaneous_) {
-			int sw = 0, sh = 0;
-			GetDrawScreenSize(&sw, &sh);
-			if (sw > 0 && sh > 0) {
-				std::uniform_real_distribution<float> dx(0.1f * sw, 0.9f * sw);
-				std::uniform_real_distribution<float> dy(0.05f * sh, 0.5f * sh);
-				std::uniform_real_distribution<float> dscale(1.0f, 3.5f);
-				std::uniform_int_distribution<int> drgb(120, 255);
+	//// ==========================================================
+	//// ★ 花火（ランダムスポーン）処理
+	//// ==========================================================
+	//efkSpawnTimer_ -= frameDt;
+	//if (efkSpawnTimer_ <= 0.0f) {
+	//	if (effekseerInitialized_ && static_cast<int>(efkPlayingHandles_.size()) < efkMaxSimultaneous_) {
+	//		int sw = 0, sh = 0;
+	//		GetDrawScreenSize(&sw, &sh);
+	//		if (sw > 0 && sh > 0) {
+	//			std::uniform_real_distribution<float> dx(0.1f * sw, 0.9f * sw);
+	//			std::uniform_real_distribution<float> dy(0.05f * sh, 0.5f * sh);
+	//			std::uniform_real_distribution<float> dscale(1.0f, 3.5f);
+	//			std::uniform_int_distribution<int> drgb(120, 255);
 
-				float px = dx(efkRng_);
-				float py = dy(efkRng_);
-				float scale = dscale(efkRng_);
-				int r = drgb(efkRng_);
-				int g = drgb(efkRng_);
-				int b = drgb(efkRng_);
+	//			float px = dx(efkRng_);
+	//			float py = dy(efkRng_);
+	//			float scale = dscale(efkRng_);
+	//			int r = drgb(efkRng_);
+	//			int g = drgb(efkRng_);
+	//			int b = drgb(efkRng_);
 
-				VECTOR pos = { px, py, 0.0f };
-				int ph = EffectManager::GetInstance().Play2D("firework", pos);
-				if (ph != -1) {
-					EffectManager::GetInstance().SetScale2D(ph, scale);
-					EffectManager::GetInstance().SetColor2D(ph, r, g, b, 255);
-					efkPlayingHandles_.push_back(ph);
-				}
-			}
-		}
-		std::uniform_real_distribution<float> jitter(0.6f * efkSpawnInterval_, 1.4f * efkSpawnInterval_);
-		efkSpawnTimer_ = jitter(efkRng_);
-	}
+	//			VECTOR pos = { px, py, 0.0f };
+	//			int ph = EffectManager::GetInstance().Play2D("firework", pos);
+	//			if (ph != -1) {
+	//				EffectManager::GetInstance().SetScale2D(ph, scale);
+	//				EffectManager::GetInstance().SetColor2D(ph, r, g, b, 255);
+	//				efkPlayingHandles_.push_back(ph);
+	//			}
+	//		}
+	//	}
+	//	std::uniform_real_distribution<float> jitter(0.6f * efkSpawnInterval_, 1.4f * efkSpawnInterval_);
+	//	efkSpawnTimer_ = jitter(efkRng_);
+	//}
 
 	if (registeredDisplayRemaining_ > 0) {
 		--registeredDisplayRemaining_;
@@ -649,9 +649,9 @@ void TitleScene::Draw(void) {
 		}
 	}
 
-	if (effekseerInitialized_) {
-		DrawEffekseer2D();
-	}
+	//if (effekseerInitialized_) {
+	//	DrawEffekseer2D();
+	//}
 
 	if (isPause_) {
 		UIManager::GetInstance().Draw(UIManager::UIState::Pause);
