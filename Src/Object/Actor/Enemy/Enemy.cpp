@@ -20,6 +20,12 @@
 #include "../../../Common/UiManager.h"
 #include "../../../Common/RomanjiConverter.h"
 
+#include "../../Attack/DarkAttack/DarkAttack.h"
+#include "../../Attack/HealAttack/HealAttack.h"
+#include "../../Attack/MeteorAttack/MeteorAttack.h"
+#include "../../Attack/SwordAttack/SwordAttack.h"
+#include "../../Attack/IceAttack/IceAttack.h"
+
 // =======================================================
 // ユーティリティ関数群（無名名前空間）
 // =======================================================
@@ -97,6 +103,7 @@ namespace {
 		return map;
 	}
 
+	// プレイヤー側の通常コマンドリストから攻撃系ワードを選ぶ（既存）
 	static std::string PickAttackCommandFromNormalList(const std::unordered_map<std::string, std::string>& wordMap) {
 		const auto& normalCmds = UIManager::GetInstance().normalCommandList_;
 		std::vector<std::string> candidates;
@@ -112,6 +119,45 @@ namespace {
 		}
 		if (candidates.empty()) return std::string();
 		return candidates[rand() % candidates.size()];
+	}
+
+	// 新: 敵がコンボ内で使う攻撃タイプをランダム選択する（重み付き）
+	static std::string PickRandomAttackType(const std::unordered_map<std::string, std::string>& wordMap, float hpRatio) {
+		// 重みは状況（HP比率）で調整可能
+		struct Item { std::string type; int weight; };
+		std::vector<Item> pool;
+
+		// 基本候補（重みの合計を高めにして多様にする）
+		pool.push_back({ "shoot", 30 });   // 落雷系（遅延）
+		pool.push_back({ "meteor", 20 });  // メテオ
+		pool.push_back({ "ranged", 0 });  // 通常遠距離
+		pool.push_back({ "attack", 1 });  // 通常攻撃
+		pool.push_back({ "sword", 15 });   // 接近斬撃
+		pool.push_back({ "dark", 12 });    // 闇系
+		pool.push_back({ "ice", 12 });     // 氷系
+		pool.push_back({ "heal", 8 });     // 回復（敵専用）
+		// ultimate はコンボのULTIMATEフラグで選ぶのでここでは薄めにしておく
+		pool.push_back({ "ultimate", 6 });
+
+		// HPが低いと究極や強技の重みを上げる
+		if (hpRatio < 0.4f) {
+			for (auto& it : pool) {
+				if (it.type == "ultimate") it.weight += 10;
+				if (it.type == "meteor") it.weight += 5;
+			}
+		}
+
+		// 作られた重み配列からランダム選択
+		int total = 0;
+		for (const auto& it : pool) total += it.weight;
+		if (total <= 0) return std::string();
+
+		int v = rand() % total;
+		for (const auto& it : pool) {
+			if (v < it.weight) return it.type;
+			v -= it.weight;
+		}
+		return pool.front().type;
 	}
 
 	static std::vector<std::vector<Enemy::EnemyAction>> CreateDefaultCombos() {
@@ -231,19 +277,48 @@ void Enemy::StartNextComboStep() {
 	const auto& wordMap = GetWordTypeMap();
 	const EnemyAction nextAction = comboSets_[activeComboIndex_][comboStep_];
 	std::string cmd;
+	std::string chosenType;
+
+	const float hpRatio = (maxHp_ > 0) ? static_cast<float>(hp_) / static_cast<float>(maxHp_) : 1.0f;
 
 	if (nextAction == EnemyAction::ULTIMATE) {
+		// 究極は登録済み必殺技から選択
 		if (attackManager_ && !attackManager_->registeredCommands_.empty()) {
 			cmd = attackManager_->registeredCommands_[rand() % attackManager_->registeredCommands_.size()].first;
 		}
 		ChangeState(ActorState::ULTIMATE);
 	}
 	else {
-		cmd = PickAttackCommandFromNormalList(wordMap);
-		if (cmd.empty() && attackManager_ && !attackManager_->registeredCommands_.empty()) {
-			cmd = attackManager_->registeredCommands_[rand() % attackManager_->registeredCommands_.size()].first;
+		// ランダムで攻撃タイプを選ぶ（落雷以外も含む）
+		chosenType = PickRandomAttackType(wordMap, hpRatio);
+
+		if (chosenType == "attack" || chosenType == "ranged") {
+			// 通常攻撃はプレイヤー側の通常コマンドから選ぶ（語があれば）
+			cmd = PickAttackCommandFromNormalList(wordMap);
+			if (cmd.empty() && attackManager_ && !attackManager_->registeredCommands_.empty()) {
+				cmd = attackManager_->registeredCommands_[rand() % attackManager_->registeredCommands_.size()].first;
+			}
 		}
-		ChangeState((nextAction == EnemyAction::ATTACK_RANGE) ? ActorState::ATTACK_RANGE : ActorState::ATTACK_NEAR);
+		else if (chosenType == "shoot" || chosenType == "thunder") {
+			// 落雷は type 名を直接コマンドにして StartTypingUltimate 側で処理
+			cmd = "thunder";
+		}
+		else if (chosenType == "ultimate") {
+			// 究極扱い（登録済みから選ぶ）
+			if (attackManager_ && !attackManager_->registeredCommands_.empty()) {
+				cmd = attackManager_->registeredCommands_[rand() % attackManager_->registeredCommands_.size()].first;
+			}
+			ChangeState(ActorState::ULTIMATE);
+		}
+		else {
+			// meteor, heal, dark, sword, ice などはそのまま type 名を command として扱う
+			cmd = chosenType;
+		}
+
+		// ステートは攻撃距離に応じて切替
+		if (chosenType == "sword") ChangeState(ActorState::ATTACK_NEAR);
+		else if (chosenType == "heal") ChangeState(ActorState::IDLE); // 回復は動かず詠唱
+		else ChangeState(ActorState::ATTACK_RANGE);
 	}
 
 	if (!cmd.empty()) {
@@ -288,8 +363,18 @@ void Enemy::StartTypingUltimate(const std::string& command) {
 	int damage = 15; float speed = 20.0f;
 	std::string typeLower = "";
 	const auto& wordMap = GetWordTypeMap();
-	auto wit = wordMap.find(command);
+	auto wit = wordMap.find(ConvertIfRomanji(ToLowerTrim(command)));
 	if (wit != wordMap.end()) typeLower = wit->second;
+
+	// 追加フォールバック: コマンドが直接 type 名の場合それを使う
+	if (typeLower.empty()) {
+		const std::string maybeType = ToLowerTrim(command);
+		if (maybeType == "shoot" || maybeType == "thunder" || maybeType == "meteor" ||
+			maybeType == "heal" || maybeType == "dark" || maybeType == "sword" ||
+			maybeType == "ice" || maybeType == "attack" || maybeType == "ranged" || maybeType == "ultimate") {
+			typeLower = maybeType;
+		}
+	}
 
 	// ★ 変更点：雷は「遅延発動」に対応したので、予定リストに入れず「今すぐ」生成する！
 	if (typeLower == "shoot" || typeLower == "thunder") {
@@ -309,7 +394,7 @@ void Enemy::StartTypingUltimate(const std::string& command) {
 			// ここで typingWait_ をディレイ（待ち時間）として渡す！
 			auto thunder = new ThunderAttack(gridIdx, false, vel, 2.0f, damage, this, typingWait_);
 			thunder->SetPos(tpos);
-			attackManager_->Add(thunder);
+			if (attackManager_) attackManager_->Add(thunder);
 		}
 	}
 	else {
@@ -328,22 +413,146 @@ void Enemy::UpdateTypingUltimate(const float deltaTime) {
 
 	if (typingElapsed_ < typingWait_) return;
 
-	// ★ 変更点：雷（THUNDER）は生成済みなので、ここでは Ranged と Ultimate のみ発射する
+	// --- resolve damage/speed/typeLower (同様ロジックをここでも使用) ---
+	int damage = 0;
+	float speed = 0.0f;
+	std::string typeLower = "";
+	const auto& wordMap = GetWordTypeMap();
+
+	// 1) 登録済み必殺技データから取得（正規化キー比較）
+	if (attackManager_) {
+		const std::string normTyping = ConvertIfRomanji(ToLowerTrim(typingCommand_));
+		for (const auto& pair : attackManager_->registeredCommands_) {
+			const std::string normRegistered = ConvertIfRomanji(ToLowerTrim(pair.first));
+			if (!normTyping.empty() && normTyping == normRegistered) {
+				const std::string commandId = pair.second;
+				const auto dataIt = attackManager_->ultimateCommandDataMap_.find(commandId);
+				if (dataIt != attackManager_->ultimateCommandDataMap_.end()) {
+					damage = dataIt->second.damage;
+					speed = dataIt->second.speed;
+				}
+				break;
+			}
+		}
+	}
+
+	// フォールバックデータ
+	if (damage == 0) {
+		const std::size_t hv = std::hash<std::string>{}(typingCommand_);
+		damage = 15 + static_cast<int>(hv % 36);
+		speed = 10.0f + static_cast<float>((hv / 37) % 21);
+	}
+
+	// 2) CSV 辞書からタイプを取得（正規化キー）
+	{
+		const std::string normKey = ConvertIfRomanji(ToLowerTrim(typingCommand_));
+		auto wit = wordMap.find(normKey);
+		if (wit != wordMap.end()) {
+			typeLower = wit->second;
+		}
+	}
+
+	// 追加フォールバック: typingCommand_ が直接 type 名の可能性
+	if (typeLower.empty()) {
+		const std::string maybeType = ToLowerTrim(typingCommand_);
+		if (maybeType == "shoot" || maybeType == "thunder" || maybeType == "meteor" ||
+			maybeType == "heal" || maybeType == "dark" || maybeType == "sword" ||
+			maybeType == "ice" || maybeType == "attack" || maybeType == "ranged" || maybeType == "ultimate") {
+			typeLower = maybeType;
+		}
+	}
+
+	// 3) 生成：既に plannedAttacks に入っている ULTIMATE / RANGED は処理する（既存挙動）
 	if (!plannedAttacks_.empty() && attackManager_) {
 		for (const auto& pa : plannedAttacks_) {
 			if (pa.kind == PlannedAttack::Kind::ULTIMATE) {
-				auto ultimate = new UltimateAttack(-1, false, pa.velocity, 1.0f, pa.damage, this,1);
+				auto ultimate = new UltimateAttack(-1, false, pa.velocity, 1.0f, pa.damage, this, 1);
 				ultimate->SetPos(pa.pos);
 				attackManager_->Add(ultimate);
 			}
 			else if (pa.kind == PlannedAttack::Kind::RANGED) {
-				auto ranged = new RangedAttack(-1, false, pa.velocity, 4.0f, pa.damage, this,1);
+				auto ranged = new RangedAttack(-1, false, pa.velocity, 4.0f, pa.damage, this, 1);
 				ranged->SetPos(pa.pos);
 				attackManager_->Add(ranged);
 			}
 		}
 	}
 
+	// 4) typeLower に応じてプレイヤーと同様の攻撃を生成（詠唱完了時に発射）
+	//    thunder は StartTypingUltimate で既に生成済みなのでここではスキップ
+	if (attackManager_) {
+		// 方向ベクトル（プレイヤー方向）
+		const VECTOR playerPos = player_->GetPos();
+		const VECTOR toPlayer = { playerPos.x - pos_.x, playerPos.y - pos_.y, playerPos.z - pos_.z };
+		const float len = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y + toPlayer.z * toPlayer.z);
+		VECTOR dir = { 0,0,0 };
+		if (len > 0.0f) { dir.x = toPlayer.x / len; dir.y = toPlayer.y / len; dir.z = toPlayer.z / len; }
+		VECTOR vel = { dir.x * speed, dir.y * speed, dir.z * speed };
+
+		if (typeLower == "dark") {
+			auto a = new DarkAttack(-1, false, vel, 1.0f, damage, this, 1);
+			a->SetPos(pos_);
+			attackManager_->Add(a);
+		}
+		else if (typeLower == "heal") {
+			// 敵が回復するタイプ。HealAttack を自分にセット。
+			auto a = new HealAttack(-1, false, vel, 1.0f, damage, this, 1);
+			a->SetPos(pos_);
+			attackManager_->Add(a);
+		}
+		else if (typeLower == "meteor") {
+			// プレイヤー周辺に落とす
+			VECTOR mpos = playerPos;
+			mpos.y += 600.0f;
+			auto a = new MeteorAttack(-1, false, vel, 2.0f, damage, this, 1);
+			a->SetPos(mpos);
+			attackManager_->Add(a);
+		}
+		else if (typeLower == "sword") {
+			VECTOR spos = pos_;
+			// 前方に発生させる（プレイヤー方向へ少しオフセット）
+			spos.x += dir.x * 50.0f;
+			spos.y += 20.0f;
+			spos.z += dir.z * 50.0f;
+			auto a = new SwordAttack(-1, false, vel, 0.6f, damage, this, 0);
+			a->SetPos(spos);
+			attackManager_->Add(a);
+		}
+		else if (typeLower == "ice") {
+			auto a = new IceAttack(-1, false, vel, 1.5f, damage, this, 1);
+			a->SetPos(pos_);
+			attackManager_->Add(a);
+		}
+		else if (typeLower == "shoot" || typeLower == "thunder") {
+			// thunder は StartTypingUltimate 側で生成済み（遅延付き）
+			// フォールバックとしてここでも生成したい場合はコメントを外す（現在は重複防止のためスキップ）
+		}
+		else if (typeLower == "attack" || typeLower == "ranged" || typeLower == "ultimate") {
+			if (typeLower == "ultimate") {
+				// 究極：単発究極攻撃（targetized by plannedAttacks or direct ultimate）
+				auto a = new UltimateAttack(-1, false, vel, 1.0f, damage, this, 1);
+				a->SetPos(pos_);
+				attackManager_->Add(a);
+			}
+			else {
+				VECTOR rpos = pos_;
+				rpos.y += 80.0f;
+				rpos.x += dir.x * 30.0f;
+				rpos.z += dir.z * 30.0f;
+				auto a = new RangedAttack(-1, false, vel, 4.0f, damage, this, 1);
+				a->SetPos(rpos);
+				attackManager_->Add(a);
+			}
+		}
+		else {
+			// デフォルト：究極魔法（単発）
+			auto a = new UltimateAttack(-1, false, vel, 1.0f, damage, this, 1);
+			a->SetPos(pos_);
+			attackManager_->Add(a);
+		}
+	}
+
+	// 既存後処理（詠唱完了）
 	plannedAttacks_.clear();
 	typingCommand_.clear();
 	UIManager::GetInstance().SetEnemyCasting("", 0.0f, 0.0f);
@@ -355,6 +564,7 @@ void Enemy::UpdateTypingUltimate(const float deltaTime) {
 	waitingForAttackFinish_ = true;
 	comboStep_++;
 }
+
 void Enemy::PreparePlannedAttackData() {
 	plannedAttacks_.clear();
 	if (typingCommand_.empty()) return;
@@ -373,8 +583,9 @@ void Enemy::PreparePlannedAttackData() {
 	const auto& wordMap = GetWordTypeMap();
 
 	if (attackManager_) {
+		const std::string normTyping = ConvertIfRomanji(ToLowerTrim(typingCommand_));
 		const auto it = std::find_if(attackManager_->registeredCommands_.begin(), attackManager_->registeredCommands_.end(),
-			[&](const auto& pair) { return pair.first == typingCommand_; });
+			[&](const auto& pair) { return ConvertIfRomanji(ToLowerTrim(pair.first)) == normTyping; });
 
 		if (it != attackManager_->registeredCommands_.end()) {
 			const std::string commandId = it->second;
@@ -392,9 +603,20 @@ void Enemy::PreparePlannedAttackData() {
 		speed = fb.speed;
 	}
 
-	const auto wit = wordMap.find(typingCommand_);
+	const std::string normKey = ConvertIfRomanji(ToLowerTrim(typingCommand_));
+	const auto wit = wordMap.find(normKey);
 	if (wit != wordMap.end()) {
 		typeLower = wit->second;
+	}
+
+	// フォールバック: typingCommand_ 自身が type 名ならそれを使う
+	if (typeLower.empty()) {
+		const std::string maybeType = ToLowerTrim(typingCommand_);
+		if (maybeType == "shoot" || maybeType == "thunder" || maybeType == "meteor" ||
+			maybeType == "heal" || maybeType == "dark" || maybeType == "sword" ||
+			maybeType == "ice" || maybeType == "attack" || maybeType == "ranged" || maybeType == "ultimate") {
+			typeLower = maybeType;
+		}
 	}
 
 	if (state_ == ActorState::ULTIMATE) {
@@ -412,51 +634,7 @@ void Enemy::PreparePlannedAttackData() {
 		plannedAttacks_.push_back(pa);
 	}
 	else if (typeLower == "shoot") {
-		//const int thunderCount = 3 + rand() % 3;
-		//std::vector<VECTOR> positions;
-
-		//// 1発目は詠唱開始時のプレイヤー足元へ
-		//VECTOR targetPos = player_->GetPos();
-		//targetPos.y = 50.0f;
-		//positions.push_back(targetPos);
-
-		//// 残りはランダム
-		//for (int i = 1; i < thunderCount; ++i) {
-		//	const int gx = static_cast<int>(targetPos.x) + (-400 + (rand() % 3) * 400);
-		//	const int gz = static_cast<int>(targetPos.z) + (-400 + (rand() % 3) * 400);
-		//	positions.push_back({ static_cast<float>(gx), 50.0f, static_cast<float>(gz) });
-		//}
-
-		//PlannedAttack pa;
-		//pa.kind = PlannedAttack::Kind::THUNDER;
-		//pa.damage = damage;
-		//pa.thunderPositions = positions; // ← std::move をやめて通常のコピーにする
-		//plannedAttacks_.push_back(pa);
-
-		//// ==========================================================
-		//// ★ 追加：雷の予告座標が決まった瞬間にエフェクトをまとめて再生！
-		//// ==========================================================
-		//static int s_thunderWarningEffectHandle = -1;
-		//static bool s_thunderWarningEffectTried = false;
-		//if (!s_thunderWarningEffectTried) {
-		//	s_thunderWarningEffectTried = true;
-		//	if (GetEffekseer3DManager() != nullptr) {
-		//		const char* path = "Data/Image/efe2/thun.efk"; 
-		//		s_thunderWarningEffectHandle = LoadEffekseerEffect(path, 1.0f);
-		//	}
-		//}
-
-		//// 決まった座標（positions）の数だけ、エフェクトを再生する
-		//if (s_thunderWarningEffectHandle != -1) {
-		//	for (const auto& tpos : positions) {
-		//		int ph = PlayEffekseer3DEffect(s_thunderWarningEffectHandle);
-		//		if (ph != -1) {
-		//			SetPosPlayingEffekseer3DEffect(ph, tpos.x, tpos.y, tpos.z);
-		//			SetScalePlayingEffekseer3DEffect(ph, 50.0f, 50.0f, 50.0f);
-		//		}
-		//	}
-		//}
-		// ==========================================================
+		// thunder handled at StartTypingUltimate (即時遅延生成)
 	}
 	else {
 		const VECTOR playerPos = player_->GetPos();
@@ -488,32 +666,32 @@ void Enemy::OnAttackCancelled() {
 void Enemy::Draw(void) {
 	ActorBase::Draw();
 
-	// 詠唱中の攻撃位置（3D空間の予測線や球）のみ描画
-	if (!typingCommand_.empty() && !plannedAttacks_.empty()) {
-		for (const auto& pa : plannedAttacks_) {
-			if (pa.kind == PlannedAttack::Kind::THUNDER) {
-				// 各予告位置で球体を出す（★エフェクト再生処理はここから削除！）
-				for (const auto& tpos : pa.thunderPositions) {
-					VECTOR drawPos = tpos;
-					drawPos.y += 5.0f;
-					//DrawSphere3D(drawPos, 30.0f, 12, GetColor(255, 160, 0), true, false);
-				}
-			}
-			else if (pa.kind == PlannedAttack::Kind::RANGED || pa.kind == PlannedAttack::Kind::ULTIMATE) {
-				const VECTOR startPos = pa.pos;
-				const float lifetime = (pa.kind == PlannedAttack::Kind::ULTIMATE) ? 1.0f : 4.0f;
-				const VECTOR impact = { startPos.x + pa.velocity.x * lifetime,
-								  startPos.y + pa.velocity.y * lifetime,
-								  startPos.z + pa.velocity.z * lifetime };
-				const unsigned int lineColor = (pa.kind == PlannedAttack::Kind::ULTIMATE) ? GetColor(255, 80, 80) : GetColor(120, 200, 255);
+	//// 詠唱中の攻撃位置（3D空間の予測線や球）のみ描画
+	//if (!typingCommand_.empty() && !plannedAttacks_.empty()) {
+	//	for (const auto& pa : plannedAttacks_) {
+	//		if (pa.kind == PlannedAttack::Kind::THUNDER) {
+	//			// 各予告位置で球体を出す（★エフェクト再生処理はここから削除！）
+	//			for (const auto& tpos : pa.thunderPositions) {
+	//				VECTOR drawPos = tpos;
+	//				drawPos.y += 5.0f;
+	//				//DrawSphere3D(drawPos, 30.0f, 12, GetColor(255, 160, 0), true, false);
+	//			}
+	//		}
+	//		else if (pa.kind == PlannedAttack::Kind::RANGED || pa.kind == PlannedAttack::Kind::ULTIMATE) {
+	//			const VECTOR startPos = pa.pos;
+	//			const float lifetime = (pa.kind == PlannedAttack::Kind::ULTIMATE) ? 1.0f : 4.0f;
+	//			const VECTOR impact = { startPos.x + pa.velocity.x * lifetime,
+	//							  startPos.y + pa.velocity.y * lifetime,
+	//							  startPos.z + pa.velocity.z * lifetime };
+	//			const unsigned int lineColor = (pa.kind == PlannedAttack::Kind::ULTIMATE) ? GetColor(255, 80, 80) : GetColor(120, 200, 255);
 
-				DrawLine3D(startPos, impact, lineColor);
-				VECTOR ip = impact;
-				ip.y += 5.0f;
-				DrawSphere3D(ip, 18.0f, 12, lineColor, true, false);
-			}
-		}
-	}
+	//			//DrawLine3D(startPos, impact, lineColor);
+	//			VECTOR ip = impact;
+	//			ip.y += 5.0f;
+	//			//DrawSphere3D(ip, 18.0f, 12, lineColor, true, false);
+	//		}
+	//	}
+	//}
 }
 void Enemy::ChangeState(const ActorState state) {
 	state_ = state;
@@ -564,4 +742,3 @@ void Enemy::AddStun(const int value) {
 }
 void Enemy::OnStunned() {}
 bool Enemy::IsDead() const { return hp_ <= 0; }
-

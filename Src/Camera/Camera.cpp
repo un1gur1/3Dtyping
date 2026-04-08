@@ -204,10 +204,10 @@ void Camera::MoveXYZDirection(void)
 {
 	// 矢印キーでカメラの角度を変える
 	float rotPow = 1.0f * DX_PI_F / 180.0f;
-	if (InputManager::GetInstance()->IsNew(KEY_INPUT_DOWN))	{ angle_.x += rotPow; }
-	if (InputManager::GetInstance()->IsNew(KEY_INPUT_UP))	{ angle_.x -= rotPow; }
-	if (InputManager::GetInstance()->IsNew(KEY_INPUT_RIGHT)) { angle_.y += rotPow; }
-	if (InputManager::GetInstance()->IsNew(KEY_INPUT_LEFT))	{ angle_.y -= rotPow; }
+	//if (InputManager::GetInstance()->IsNew(KEY_INPUT_DOWN))	{ angle_.x += rotPow; }
+	//if (InputManager::GetInstance()->IsNew(KEY_INPUT_UP))	{ angle_.x -= rotPow; }
+	//if (InputManager::GetInstance()->IsNew(KEY_INPUT_RIGHT)) { angle_.y += rotPow; }
+	//if (InputManager::GetInstance()->IsNew(KEY_INPUT_LEFT))	{ angle_.y -= rotPow; }
 }
 
 void Camera::MoveXYZDirectionPad(void)
