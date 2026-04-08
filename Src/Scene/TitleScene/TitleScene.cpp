@@ -494,10 +494,10 @@ void TitleScene::Update(void) {
 		if (CheckHitKey(KEY_INPUT_DOWN) && scrollOffset_ < listSize - 1) scrollOffset_++;
 	}
 
-	if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_SPACE)) {
-		SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
-		return;
-	}
+	//if (InputManager::GetInstance()->IsTrgUp(KEY_INPUT_SPACE)) {
+	//	SceneManager::GetInstance()->ChangeScene(SceneManager::SCENE_ID::GAME);
+	//	return;
+	//}
 
 	prevReturnDown_ = curReturnDown;
 }

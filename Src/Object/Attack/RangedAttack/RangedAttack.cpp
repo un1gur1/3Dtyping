@@ -14,7 +14,7 @@ void RangedAttack::Update() {
 }
 
 void RangedAttack::Draw() {
-    DrawSphere3D(pos_, 30.0f, 16, GetColor(255, 100, 100), GetColor(255, 100, 100), true);
+    //DrawSphere3D(pos_, 30.0f, 16, GetColor(255, 100, 100), GetColor(255, 100, 100), true);
 }
 
 void RangedAttack::DrawWarning() {
